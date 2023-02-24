@@ -377,17 +377,19 @@ def write_simulation_data(
         raise e
 
 
-def plot_sim_data():
+def plot_sim_data(input_prm=None):
     import matplotlib.pyplot as plt
 
-    input_prm = {"num_events": 1_000_000,
-                 "bkg": 0.05,
-                 "components": [(415, .10), (232, .50), (256, .30), (1200, .05)],
-                 "bin_size": 25,
-                 "time_gate": 15_000,
-                 "sigma_start": 68,
-                 "sigma_stop": 68,
-                 "offset": 2000}
+
+    if input_prm is None:
+        input_prm = {"num_events": 1_000_000,
+                    "bkg": 0.05,
+                    "components": [(415, .10), (232, .50), (256, .30), (1200, .05)],
+                    "bin_size": 25,
+                    "time_gate": 15_000,
+                    "sigma_start": 68,
+                    "sigma_stop": 68,
+                    "offset": 2000}
 
     rng = np.random.default_rng() # Seed to be changed for repeated simulation
 
@@ -402,8 +404,6 @@ def plot_sim_data():
 
     plt.plot(bins,total_hist, label="total")
 
-    print(total_hist, bins)
-
     for name,separate in separate_events.items():
 
         sep_hist, sep_bins = do_histogram(separate, input_prm["time_gate"], input_prm["bin_size"])
@@ -416,23 +416,95 @@ def plot_sim_data():
 
     plt.legend()
     plt.yscale("log")
-    print(total_hist.mean())
     plt.show()
 
-def main():
+def random_input_prm():
+    '''
+    Somewhat randomised input parameters
+    for simulation.
+    '''
 
-    input_prm = {"num_events": 1_000_000,
-                 "bkg": 0.05,
-                 "components": [(415, .10), (232, .50), (256, .30), (1200, .05)],
+    rng = np.random.default_rng()
+
+    num_events = int(rng.uniform(200_000, 1_100_000))
+
+    bkg = (1_000_000*0.005)/num_events
+    remaining = 1-bkg
+
+    lifetimes = [
+        245+rng.uniform(low=-5,high=5),
+        400 + rng.uniform(-2,2),
+        1500
+    ]
+
+    
+    intensities = [0]*3
+    intensities[-1] = rng.uniform(0.001,0.04)*remaining
+    remaining -= intensities[-1]
+    intensities[0] = rng.uniform(0.70, 0.85)*remaining
+    intensities[1] = remaining-intensities[0]
+
+    components = list(zip(lifetimes,intensities))
+
+    input_prm = {"num_events": num_events,
+                 "bkg": bkg,
+                 "components": components,
                  "bin_size": 25,
                  "time_gate": 15_000,
                  "sigma_start": 68,
                  "sigma_stop": 68,
-                 "offset": 2000}
+                 "offset": 1000}
+    
 
-    for _ in range(100):
+    return input_prm
 
-        write_simulation_data(input_prm)
+
+def write_many_simulations(sims_to_write, random_input=None):
+    '''
+    Write multiple simulations to file; see function
+    write_simulation_data for more information.
+
+    Parameters
+    ----------
+
+    sims_to_write : int
+        Number of simulations to write to file
+    
+    random_input : Boolean
+        Whether to randomise input parameters.
+
+    Returns
+    -------
+
+        None
+    '''
+
+    if random_input is None:
+        random_input = False
+
+        input_prm = {"num_events": 1_000_000,
+                    "bkg": 0.05,
+                    "components": [(415, .10), (232, .50), (256, .30), (1200, .05)],
+                    "bin_size": 25,
+                    "time_gate": 15_000,
+                    "sigma_start": 68,
+                    "sigma_stop": 68,
+                    "offset": 2000}
+
+
+    for i in range(sims_to_write):
+        print("\033[K",end="")
+        print(f"{i+1}/{sims_to_write}", end="\r")
+        if random_input:
+            write_simulation_data(random_input_prm())
+        else:
+            write_simulation_data(input_prm)
+
+    print()
+
+def main():
+
+    write_many_simulations(100, True)
 
 if __name__ == "__main__":
 
