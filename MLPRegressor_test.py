@@ -153,7 +153,7 @@ def main():
         learning_rate="invscaling",
         power_t = 0.5,
         max_iter=5e6,
-        random_state=None,
+        random_state=12345,
         tol=0.001,
         warm_start=True,
         max_fun=15000,
@@ -187,6 +187,37 @@ def main():
 
     print("R2 score:", regressor.score(x_test, y_test))
 
+    print()
+    print("predictions for real data:")
+    real_folder = os.path.join(
+        os.getcwd(),
+        "Experimental_data20230215"
+    )
+
+    real_data_files = [file for file in os.listdir(real_folder) if file.endswith(".pals")]
+
+    real_metadata = read_metadata(real_folder, "metadata.json")
+    real_x = get_train_or_test(real_folder, real_data_files)
+    process_input(real_x)
+    real_y = get_components(real_metadata, real_data_files)
+    process_output(real_y)
+
+    real_prediction = regressor.predict(real_x)
+    format_str = ("{:.3f} "*6).format
+    for i in range(len(real_prediction)):
+        print(format_str(*real_prediction[i]))
+        print(format_str(*real_y[i]))
+        print()
+    
+    print("R2 score:", regressor.score(real_x, real_y))
+
+
+
+
+
+
+    
+
 
     # should probably consider background as well, it may be 
     # helpful to somehow encode the fact that the intensities should
@@ -196,5 +227,5 @@ def main():
 
 
 if __name__ == "__main__":
-
+    
     main()
