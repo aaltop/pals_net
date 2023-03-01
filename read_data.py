@@ -16,6 +16,64 @@ def read_metadata(folder_path, metadata_name=None) -> dict:
     
     return metadata
 
+def real_meta_to_json(file_path):
+    '''
+    Get real metadata as proper dict
+    '''
+
+    with open(file_path, "r", encoding="utf-8") as f:
+
+        lines = f.readlines()
+
+    # remove empty lines
+    while True:
+        try:
+            lines.remove("\n")
+        except ValueError:
+            break
+
+    # wrangle the strings into suitable format
+    lines = [line.rstrip() for line in lines]
+    lines = [line.replace("(","[") for line in lines]
+    lines = [line.replace(")","]") for line in lines]
+    lines = [line.replace(" .", "0.") for line in lines]
+    
+    
+    file_name_lines = [i for i,name in enumerate(lines) if name.endswith(".pals")]
+    metadata = {}
+
+    # print(lines)
+
+    # pick the metadata from in between the file names,
+    # parse to json and set into dict.
+    for index in range(len(file_name_lines)):
+
+        start = file_name_lines[index]+1
+        file_name = lines[file_name_lines[index]]
+        if index != len(file_name_lines)-1:
+            stop = file_name_lines[index+1]
+            metadata[file_name] = json.loads("".join(lines[start:stop]))
+        # for the last file, just take the rest of the lines
+        else:
+            metadata[file_name] = json.loads("".join(lines[start:]))
+
+
+    return metadata
+
+
+def write_meta(metadata, file_path):
+    '''
+    Write json-compliant <metadata> to file <file_path>.
+    '''
+
+    # perhaps a tad unnecessary altogether.
+    with open(file_path, "w", encoding="utf-8") as f:
+
+        json.dump(metadata, f, indent="\t")
+    
+
+
+
 def get_components(metadata:dict, file_names:list) -> list:
     '''
     Get lifetime and intensity components for given
@@ -68,6 +126,24 @@ def test_data():
     plt.yscale("log")
     plt.show()
 
+def test_meta_to_json():
+
+    folder_path = os.path.join(
+        os.getcwd(), 
+        "Experimental_data20230215")
+    
+    file_path = os.path.join(folder_path, "metadata.txt")
+    data_files = os.listdir(folder_path)
+    data_files = [file for file in data_files if file.endswith(".pals")]
+
+    metadata = real_meta_to_json(file_path)
+
+    for file_name in data_files:
+        print(metadata[file_name])
+
+    # write_meta(metadata, os.path.join(folder_path, "metadata.json"))
+
+
 def main():
 
     folder_path = os.path.join(os.getcwd(), "simdata")
@@ -75,8 +151,12 @@ def main():
     # should only contain simdata files
     file_names.remove("metadata.txt")
     train = get_train_or_test(folder_path, file_names[:100])
-    print(len(train), len(train[0]))
+    
+    first = train[0]
+    max_val_index = first.argmax()
+    print(max_val_index)
+    print(first[max_val_index:])
 
 if __name__ == "__main__":
 
-    main()
+    test_meta_to_json()
