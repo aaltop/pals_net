@@ -91,25 +91,36 @@ def get_components(metadata:dict, file_names:list) -> list:
 
     return all_comps
 
-def read_data(folder_path, file_name) -> pd.DataFrame:
+def read_data(folder_path, file_name, col_names=None) -> pd.DataFrame:
+
+    if col_names is None:
+        col_names = ("time_ps","counts")
 
     file_path = os.path.join(folder_path, file_name)
     with open(file_path, "r", encoding="utf-8") as f:
-        data = pd.read_table(f,sep=" ")
+        data = pd.read_table(f,sep=" ", names=col_names, skiprows=1, index_col=False)
+
+
+    # print(file_name)
+    # print(data)
+    # print()
 
     return data
 
-def get_train_or_test(folder_path:str, file_names):
+def get_train_or_test(folder_path:str, file_names, col_names=None):
     '''
     Returns the counts for the data in the files <file_names>
     from the folder <folder_path>.
 
     '''
+
+    if col_names is None:
+        col_names = ("time_ps", "counts")
     
     data = [0]*len(file_names)
 
     for i,file_name in enumerate(file_names):
-        data[i] = read_data(folder_path, file_name)["counts"].to_numpy()
+        data[i] = read_data(folder_path, file_name, col_names)["counts"].to_numpy()
 
     return data
 
@@ -144,6 +155,25 @@ def test_meta_to_json():
     # write_meta(metadata, os.path.join(folder_path, "metadata.json"))
 
 
+def test_read_real():
+
+    real_folder =  os.path.join(os.getcwd(),"Experimental_data20230215")
+
+    real_data_files = [
+        file for file in os.listdir(real_folder) if file.endswith(".pals")
+    ]
+
+
+    real_meta = read_metadata(
+        real_folder, 
+        "metadata.json")
+    
+    print(get_components(real_meta, real_data_files))
+    
+    print(get_train_or_test(real_folder, real_data_files))
+
+    # print(read_data(real_folder, "data_0005.pals"))
+
 def main():
 
     folder_path = os.path.join(os.getcwd(), "simdata")
@@ -159,4 +189,4 @@ def main():
 
 if __name__ == "__main__":
 
-    test_meta_to_json()
+    test_read_real()
