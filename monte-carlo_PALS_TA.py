@@ -313,7 +313,7 @@ def write_simulation_data(
         Name of file to write data into. Final file
         will be "<file_name_beginning>_<num>.pals", where
         <num> is automatically determined based on how many files
-        there already are.
+        there already are. Defaults to "simdata".
 
     Returns
     -------
@@ -324,7 +324,9 @@ def write_simulation_data(
 
     # determine the folder to write into,
     # create it if need be
-    folder_name = "simdata"
+
+    if folder_name is None:
+        folder_name = "simdata"
     cwd = os.getcwd()
     folder_path = os.path.join(cwd,folder_name)
 
@@ -415,6 +417,8 @@ def plot_sim_data(input_prm=None):
     # plt.plot(bins2, total_hist2, "r")
 
     plt.legend()
+    plt.xlabel("time")
+    plt.ylabel("counts")
     plt.yscale("log")
     plt.show()
 
@@ -433,8 +437,8 @@ def random_input_prm():
 
     lifetimes = [
         245+rng.uniform(low=-5,high=5),
-        400 + rng.uniform(-2,2),
-        1500
+        400+rng.uniform(low=-5,high=5),
+        1500+rng.uniform(low=-5,high=5)
     ]
 
     
@@ -459,7 +463,7 @@ def random_input_prm():
     return input_prm
 
 
-def write_many_simulations(sims_to_write, random_input=None):
+def write_many_simulations(sims_to_write, folder_name=None, random_input=None):
     '''
     Write multiple simulations to file; see function
     write_simulation_data for more information.
@@ -468,7 +472,11 @@ def write_many_simulations(sims_to_write, random_input=None):
     ----------
 
     sims_to_write : int
-        Number of simulations to write to file
+        Number of simulations to write to file.
+
+    folder_name : string
+        Folder to write simulations into. See function
+        "write_simulation_data" for more information.
     
     random_input : Boolean
         Whether to randomise input parameters.
@@ -496,15 +504,19 @@ def write_many_simulations(sims_to_write, random_input=None):
         print("\033[K",end="")
         print(f"{i+1}/{sims_to_write}", end="\r")
         if random_input:
-            write_simulation_data(random_input_prm())
+            write_simulation_data(random_input_prm(), folder_name=folder_name)
         else:
-            write_simulation_data(input_prm)
+            write_simulation_data(input_prm, folder_name=folder_name)
 
     print()
 
 def main():
 
-    write_many_simulations(100, True)
+    write_many_simulations(
+        sims_to_write=1980,
+        folder_name="simdata_more_random",
+        random_input=True
+    )
 
 if __name__ == "__main__":
 
