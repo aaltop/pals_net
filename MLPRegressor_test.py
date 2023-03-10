@@ -1,18 +1,26 @@
 from sklearn.neural_network import MLPRegressor
 import numpy as np
 import os
+import sys
 import matplotlib.pyplot as plt
 
 # from read_data import read_data
 from read_data import read_metadata
 import time
 
+import logging
+
 # SEE
 # Pietrow, Marek & Miaskowski, A.. (2023). 
 # Artificial neural network as an effective tool to calculate parameters
 # of positron annihilation lifetime spectra. 
 
-def process_input(data, num_of_channels=None):
+# I guess I SHOULD just do as the thing says, but no. Don't know
+# if logging is the best here anyway, but it's a quick thing, and
+# the point is currently to always log anyway
+#pylint: disable=logging-not-lazy, logging-fstring-interpolation
+
+def process_input(data, num_of_channels=None, take_average_over=None):
     '''
     Cut off counts in <data> such that only data from the
     max value onwards up to <num_of_channels> beyond the max 
@@ -24,9 +32,14 @@ def process_input(data, num_of_channels=None):
     data : list of numpy arrays
         The counts for <data.size> simulated spectra.
 
-    num_of_channels : int, divisible by five
+    num_of_channels : int
         How many channels to take beyond the max channel,
-        as in [max_chan:max_chan+num_of_channels]
+        as in [max_chan:max_chan+num_of_channels]. Needs to be
+        divisible by <take_average_over>.
+
+    take_average_over : int
+        how many channels to average over. <num_of_channels> needs
+        to be divisible by this.
 
     
     Returns
@@ -36,11 +49,13 @@ def process_input(data, num_of_channels=None):
 
     if num_of_channels is None:
         num_of_channels = 100
+    if take_average_over is None:
+        take_average_over = 5
 
     for i in range(len(data)):
         max_index = data[i].argmax()
         # average over five value groups (non-rolling)
-        averaged_data = data[i][max_index:max_index+num_of_channels].reshape((-1,5)).mean(axis=1)
+        averaged_data = data[i][max_index:max_index+num_of_channels].reshape((-1,take_average_over)).mean(axis=1)
         # normalise
         data[i] = averaged_data/averaged_data.max()
 
@@ -86,20 +101,41 @@ def test_fit(regressor, input_vals, output):
     difference = abs(prediction - output)
 
     format_str = ("{:.3f} "*6).format
-    print()
-    print("Comparison of prediction, real and the difference:")
+    logging.info("")
+    logging.info("Comparison of prediction, real and the difference:")
     for i in range(len(prediction)):
-        print(format_str(*prediction[i]))
-        print(format_str(*output[i]))
-        print(format_str(*difference[i]))
-        print()
+        logging.info(format_str(*prediction[i]))
+        logging.info(format_str(*output[i]))
+        logging.info(format_str(*difference[i]))
+        logging.info("")
 
-    print("R2 score:", regressor.score(input_vals, output))
+    logging.info("R2 score: " + str(regressor.score(input_vals, output)))
 
 
 def main():
 
-    print("starting now")
+    log_folder = os.path.join(
+        os.getcwd(),
+        "logged_runs"
+    )
+
+    if not (os.path.exists(log_folder)):
+        os.mkdir(log_folder)
+
+    file_name = "fit" + time.strftime("%Y%m%d%H%M%S") + ".log"
+    file_path = os.path.join(log_folder, file_name)
+
+    handlers = logging.StreamHandler(sys.stdout), logging.FileHandler(file_path)
+
+    logging.basicConfig(
+        style="{",
+        format="{message}",
+        level=logging.INFO,
+        handlers=handlers
+
+    )
+
+    logging.info("starting now")
 
     from read_data import get_train_or_test
     from read_data import get_components
@@ -131,8 +167,14 @@ def main():
     # plt.yscale("log")
     # plt.show()
 
-    process_input(x_train)
-    process_input(x_test)
+
+    #TODO: make a pipeline of regressor that also processes
+    # input
+    take_average_over = 5
+    process_input(x_train, take_average_over=take_average_over)
+    process_input(x_test, take_average_over=take_average_over)
+
+    logging.info(f"averaging input over {take_average_over} bins")
 
     # plt.plot(x_train[1])
     # plt.show()
@@ -153,7 +195,7 @@ def main():
 
 
     stop = time.time()
-    print("time to fetch and process test and train:", stop-start)
+    logging.info("time to fetch and process test and train: " + str(stop-start))
 
     
     # some of these parameters might
@@ -188,18 +230,24 @@ def main():
         alpha=0.01,
         learning_rate="invscaling",
         power_t = 0.5,
-        max_iter=5e2,
+        max_iter=5e6,
         random_state=12345,
         tol=0.001,
         warm_start=True,
         max_fun=15000,
     )
 
-    print("Starting fitting process...")
+    logging.info("\nParameters of regressor:")
+
+    for item in regressor.get_params().items():
+        logging.info(item)
+
+
+    logging.info("\nStarting fitting process at " + time.strftime("%X"))
     fit_start = time.time()
     regressor.fit(x_train,y_train)
     fit_end = time.time()
-    print(f"fitting took {fit_end-fit_start:.2f} seconds.")
+    logging.info(f"fitting took {fit_end-fit_start:.2f} seconds.")
 
     # train_prediction = regressor.predict(x_train[0:2])
     # print()
@@ -211,8 +259,10 @@ def main():
     # # not necessarily the best for scoring here?
     # print("R2 score:", regressor.score(x_train, y_train))
 
-    print("\n Testing fit with train data:")
-    test_fit(regressor, x_train[0:2], y_train[0:2])
+    test_with = 10
+
+    logging.info("\n Testing fit with train data:")
+    test_fit(regressor, x_train[0:test_with], y_train[0:test_with])
 
     # test_prediction = regressor.predict(x_test[0:2])
     # print()
@@ -222,8 +272,8 @@ def main():
     # print(test_prediction - y_test[0:2])
     # print("R2 score:", regressor.score(x_test, y_test))
 
-    print("\nTesting with test data:")
-    test_fit(regressor, x_test[0:2], y_test[0:2])
+    logging.info("\nTesting with test data:")
+    test_fit(regressor, x_test[0:test_with], y_test[0:test_with])
 
     real_folder = os.path.join(
         os.getcwd(),
@@ -234,7 +284,7 @@ def main():
 
     real_metadata = read_metadata(real_folder, "metadata.json")
     real_x = get_train_or_test(real_folder, real_data_files)
-    process_input(real_x)
+    process_input(real_x, take_average_over=take_average_over)
     real_y = get_components(real_metadata, real_data_files)
     process_output(real_y)
 
@@ -247,7 +297,7 @@ def main():
     
     # print("R2 score:", regressor.score(real_x, real_y))
 
-    print("\nTesting fit with real data")
+    logging.info("\nTesting fit with real data")
     test_fit(regressor, real_x, real_y)
 
 
