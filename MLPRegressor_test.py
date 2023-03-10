@@ -59,7 +59,43 @@ def process_output(data):
         cur_data[1::2] *= 10
         data[i] = cur_data
 
-    
+def unprocess_output(data):
+    '''
+    Transform output data back to original form,
+    see function process_output for more info.
+    '''
+
+    for i in range(len(data)):
+        cur_data = data[i]
+        cur_data[::2] *= 100
+        cur_data[1::2] /= 10
+        data[i] = cur_data
+
+
+def test_fit(regressor, input_vals, output):
+    '''
+    <output> is true output values.
+    '''
+
+    prediction = regressor.predict(input_vals)
+
+    unprocess_output(prediction)
+    output = output.copy()
+    unprocess_output(output)
+
+    difference = abs(prediction - output)
+
+    format_str = ("{:.3f} "*6).format
+    print()
+    print("Comparison of prediction, real and the difference:")
+    for i in range(len(prediction)):
+        print(format_str(*prediction[i]))
+        print(format_str(*output[i]))
+        print(format_str(*difference[i]))
+        print()
+
+    print("R2 score:", regressor.score(input_vals, output))
+
 
 def main():
 
@@ -104,15 +140,15 @@ def main():
     # print(len(x_train[0]))
     # print(len(x_test))
 
-    print(x_train[45])
+    # print(x_train[45])
 
     metadata = read_metadata(folder_path)
     y_train = get_components(metadata, train_files)
     y_test = get_components(metadata, test_files)
 
-    print(y_train[0])
+    # print(y_train[0])
     process_output(y_train)
-    print(y_train[0])
+    # print(y_train[0])
     process_output(y_test)
 
 
@@ -152,7 +188,7 @@ def main():
         alpha=0.01,
         learning_rate="invscaling",
         power_t = 0.5,
-        max_iter=5e6,
+        max_iter=5e2,
         random_state=12345,
         tol=0.001,
         warm_start=True,
@@ -161,34 +197,34 @@ def main():
 
     print("Starting fitting process...")
     fit_start = time.time()
-    # Well, it seems to run, but doesn't
-    # converge, which isn't terribly 
-    # surprising. Need to do some stuff
-    # with the data, but at least this works.
     regressor.fit(x_train,y_train)
     fit_end = time.time()
     print(f"fitting took {fit_end-fit_start:.2f} seconds.")
-    train_prediction = regressor.predict(x_train[0:2])
-    print()
-    print("predictions for train data:")
-    print(train_prediction)
-    print(y_train[0:2])
-    print(train_prediction - y_train[0:2])
 
-    # not necessarily the for scoring here?
-    print("R2 score:", regressor.score(x_train, y_train))
+    # train_prediction = regressor.predict(x_train[0:2])
+    # print()
+    # print("predictions for train data:")
+    # print(train_prediction)
+    # print(y_train[0:2])
+    # print(train_prediction - y_train[0:2])
 
-    test_prediction = regressor.predict(x_test[0:2])
-    print()
-    print("predictions for test data:")
-    print(test_prediction)
-    print(y_test[0:2])
-    print(test_prediction - y_test[0:2])
+    # # not necessarily the best for scoring here?
+    # print("R2 score:", regressor.score(x_train, y_train))
 
-    print("R2 score:", regressor.score(x_test, y_test))
+    print("\n Testing fit with train data:")
+    test_fit(regressor, x_train[0:2], y_train[0:2])
 
-    print()
-    print("predictions for real data:")
+    # test_prediction = regressor.predict(x_test[0:2])
+    # print()
+    # print("predictions for test data:")
+    # print(test_prediction)
+    # print(y_test[0:2])
+    # print(test_prediction - y_test[0:2])
+    # print("R2 score:", regressor.score(x_test, y_test))
+
+    print("\nTesting with test data:")
+    test_fit(regressor, x_test[0:2], y_test[0:2])
+
     real_folder = os.path.join(
         os.getcwd(),
         "Experimental_data20230215"
@@ -202,14 +238,17 @@ def main():
     real_y = get_components(real_metadata, real_data_files)
     process_output(real_y)
 
-    real_prediction = regressor.predict(real_x)
-    format_str = ("{:.3f} "*6).format
-    for i in range(len(real_prediction)):
-        print(format_str(*real_prediction[i]))
-        print(format_str(*real_y[i]))
-        print()
+    # real_prediction = regressor.predict(real_x)
+    # format_str = ("{:.3f} "*6).format
+    # for i in range(len(real_prediction)):
+    #     print(format_str(*real_prediction[i]))
+    #     print(format_str(*real_y[i]))
+    #     print()
     
-    print("R2 score:", regressor.score(real_x, real_y))
+    # print("R2 score:", regressor.score(real_x, real_y))
+
+    print("\nTesting fit with real data")
+    test_fit(regressor, real_x, real_y)
 
 
 
