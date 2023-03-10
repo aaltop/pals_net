@@ -35,11 +35,11 @@ def process_input(data, num_of_channels=None, take_average_over=None):
     num_of_channels : int
         How many channels to take beyond the max channel,
         as in [max_chan:max_chan+num_of_channels]. Needs to be
-        divisible by <take_average_over>.
+        divisible by <take_average_over>. Default is 100.
 
     take_average_over : int
         how many channels to average over. <num_of_channels> needs
-        to be divisible by this.
+        to be divisible by this. Default is 5.
 
     
     Returns
@@ -79,9 +79,6 @@ def process_output(data, output_type = "all"):
                 cur_data[1::2] *= 10
                 data[i] = cur_data
 
-        # are these actually necessary, could
-        # just as well keep 'em unchanged as 
-        # they'll be the same magnitude
         case "lifetimes":
             for i in range(len(data)):
                 data[i] /= 100
@@ -108,9 +105,6 @@ def unprocess_output(data, output_type="all"):
                 cur_data[1::2] /= 10
                 data[i] = cur_data
 
-        # are these actually necessary, could
-        # just as well keep 'em unchanged as 
-        # they'll be the same magnitude
         case "lifetimes":
             for i in range(len(data)):
                 data[i] *= 100
@@ -126,13 +120,15 @@ def test_fit(regressor, input_vals, output, output_type="all"):
     <output> is true output values.
 
     <output_type> is one of "all", "lifetimes" and "intensities".
+
+    <input_vals> should be in processed form, <output> in non-processed
+    from (need to change this)
     '''
 
     prediction = regressor.predict(input_vals)
 
     unprocess_output(prediction, output_type)
-    output = output.copy()
-    unprocess_output(output, output_type)
+
 
     difference = abs(prediction - output)
 
@@ -145,6 +141,9 @@ def test_fit(regressor, input_vals, output, output_type="all"):
         logging.info(format_str(*output[i]))
         logging.info(format_str(*difference[i]))
         logging.info("")
+
+    logging.info("true output mean:")
+    logging.info(format_str(*np.array(output).mean(axis=0)))
 
     logging.info("R2 score: " + str(regressor.score(input_vals, output)))
 
@@ -187,12 +186,16 @@ def main():
     # get training and test input, process them
     # --------------------------
 
-    folder_path = os.path.join(os.getcwd(), "simdata")
+    folder = "simdata_more_random"
+    logging.info(f"simdata folder: {folder}")
+    folder_path = os.path.join(os.getcwd(), folder)
     data_files = os.listdir(folder_path)
     data_files.remove("metadata.txt")
 
-    train_size = 1500
-    test_size = 100
+    train_size = 50
+    test_size = 10
+
+    logging.info(f"train size: {train_size}")
 
     permute = False
     if permute:
@@ -214,9 +217,10 @@ def main():
 
 
     #TODO: make a pipeline of regressor that also processes input
-    take_average_over = 2
-    process_input(x_train, take_average_over=take_average_over)
-    process_input(x_test, take_average_over=take_average_over)
+    num_of_channels = 100
+    take_average_over = 5
+    process_input(x_train, num_of_channels, take_average_over=take_average_over)
+    process_input(x_test, num_of_channels, take_average_over=take_average_over)
 
     logging.info(f"averaging input over {take_average_over} bins")
 
@@ -234,16 +238,14 @@ def main():
     # -------------------------------------
 
     # what to fit on: lifetimes, intensities or both ("all")
-    output_to_fit = "intensities"
+    output_to_fit = "lifetimes"
 
     metadata = read_metadata(folder_path)
     y_train = get_components(metadata, train_files, output_to_fit)
     y_test = get_components(metadata, test_files, output_to_fit)
 
-    # print(y_train[0])
     process_output(y_train, output_to_fit)
-    # print(y_train[0])
-    process_output(y_test, output_to_fit)
+
 
     # =======================================
 
@@ -276,16 +278,17 @@ def main():
     #     max_fun=15000
     # )
 
+    max_iter = 5e6
     regressor = MLPRegressor(
         hidden_layer_sizes=[150]*7,
         activation="relu",
         solver="lbfgs",
-        alpha=0.01,
+        alpha=0.001,
         learning_rate="invscaling",
         power_t = 0.5,
-        max_iter=5e2,
+        max_iter=int(5e6),
         random_state=12345,
-        tol=0.0001,
+        tol=1e-4,
         warm_start=True,
         max_fun=25000,
     )
@@ -302,9 +305,19 @@ def main():
     fit_end = time.time()
     logging.info(f"fitting took {fit_end-fit_start:.2f} seconds.")
 
+    logging.info("\nnumber of iterations:")
+    logging.info(regressor.n_iter_)
 
-    test_with = 10
-    logging.info("\n Testing fit with train data:")
+    logging.info("\nType of score function:")
+    logging.info(regressor.loss)
+    logging.info("Loss value at last iteration:")
+    logging.info(regressor.loss_)
+
+    unprocess_output(y_train, output_to_fit)
+    
+
+    test_with = min(10, train_size, test_size)
+    logging.info("\nTesting fit with train data:")
     test_fit(regressor, x_train[0:test_with], y_train[0:test_with], output_to_fit)
     logging.info("\nTesting with test data:")
     test_fit(regressor, x_test[0:test_with], y_test[0:test_with], output_to_fit)
@@ -318,9 +331,8 @@ def main():
 
     real_metadata = read_metadata(real_folder, "metadata.json")
     real_x = get_train_or_test(real_folder, real_data_files)
-    process_input(real_x, take_average_over=take_average_over)
+    process_input(real_x, num_of_channels, take_average_over=take_average_over)
     real_y = get_components(real_metadata, real_data_files, output_to_fit)
-    process_output(real_y, output_to_fit)
 
     # real_prediction = regressor.predict(real_x)
     # format_str = ("{:.3f} "*6).format
@@ -333,10 +345,6 @@ def main():
 
     logging.info("\nTesting fit with real data")
     test_fit(regressor, real_x, real_y, output_to_fit)
-
-
-
-
 
 
     
