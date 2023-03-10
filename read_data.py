@@ -74,13 +74,27 @@ def write_meta(metadata, file_path):
 
 
 
-def get_components(metadata:dict, file_names:list) -> list:
+def get_components(metadata:dict, file_names:list, return_vals="all") -> list:
     '''
     Get lifetime and intensity components for given
     data determined by <file_names>, a list of data filename strings. 
     <metadata> can be fetched with the use of the function read_metadata.
 
     Returns components in a list as flattened numpy arrays.
+
+    Parameters
+    ----------
+
+    metadata : dict
+        dictionary of simulated data metadata, which has a "components"
+        part, which consists of pairs of lifetimes and relative
+        intensities
+    
+    file_names : list
+        list of file names - simulations - to read metadata for
+    
+    return_vals : string
+        one of "all", "lifetimes" or and "intensities"
     '''
 
     all_comps = [0]*len(file_names)
@@ -88,6 +102,22 @@ def get_components(metadata:dict, file_names:list) -> list:
     for i,file_name in enumerate(file_names):
         all_comps[i] = np.array(
             metadata[file_name]["components"]).flatten()
+        
+    match return_vals:
+        case "all":
+            for i,file_name in enumerate(file_names):
+                all_comps[i] = np.array(
+                metadata[file_name]["components"]).flatten()
+        case "lifetimes":
+            for i,file_name in enumerate(file_names):
+                all_comps[i] = np.array(
+                metadata[file_name]["components"]).flatten()[::2]
+        case "intensities":
+            for i,file_name in enumerate(file_names):
+                all_comps[i] = np.array(
+                metadata[file_name]["components"]).flatten()[1::2]
+        case _:
+            raise ValueError("<return_vals> must be one of 'all', 'lifetimes' and 'intensities'")
 
     return all_comps
 

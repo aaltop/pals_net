@@ -59,48 +59,85 @@ def process_input(data, num_of_channels=None, take_average_over=None):
         # normalise
         data[i] = averaged_data/averaged_data.max()
 
-def process_output(data):
+def process_output(data, output_type = "all"):
     '''
     Process output data such that the values are of similar
     order. Data is expected to be component lifetimes on
-    even indices, and component intensities on odd indices.
-    Scales lifetimes by dividing by 100, and intensities by 
-    multiplying by 10.
+    even indices, and component intensities on odd indices, if
+    <output_type> is "all". Scales lifetimes by dividing by 100, 
+    and intensities by multiplying by 10.
+
+    output_type : string
+        one of "all", "lifetimes" and "intensities".
     '''
 
-    for i in range(len(data)):
-        cur_data = data[i]
-        cur_data[::2] /= 100
-        cur_data[1::2] *= 10
-        data[i] = cur_data
+    match output_type:
+        case "all":
+            for i in range(len(data)):
+                cur_data = data[i]
+                cur_data[::2] /= 100
+                cur_data[1::2] *= 10
+                data[i] = cur_data
 
-def unprocess_output(data):
+        # are these actually necessary, could
+        # just as well keep 'em unchanged as 
+        # they'll be the same magnitude
+        case "lifetimes":
+            for i in range(len(data)):
+                data[i] /= 100
+        case "intensities":
+            for i in range(len(data)):
+                data[i] *= 10
+        case _:
+            raise ValueError("<return_vals> must be one of 'all', 'lifetimes' and 'intensities'")
+
+def unprocess_output(data, output_type="all"):
     '''
     Transform output data back to original form,
     see function process_output for more info.
+
+    output_type : string
+        one of "all", "lifetimes" and "intensities".
     '''
 
-    for i in range(len(data)):
-        cur_data = data[i]
-        cur_data[::2] *= 100
-        cur_data[1::2] /= 10
-        data[i] = cur_data
+    match output_type:
+        case "all":
+            for i in range(len(data)):
+                cur_data = data[i]
+                cur_data[::2] *= 100
+                cur_data[1::2] /= 10
+                data[i] = cur_data
+
+        # are these actually necessary, could
+        # just as well keep 'em unchanged as 
+        # they'll be the same magnitude
+        case "lifetimes":
+            for i in range(len(data)):
+                data[i] *= 100
+        case "intensities":
+            for i in range(len(data)):
+                data[i] /= 10
+        case _:
+            raise ValueError("<return_vals> must be one of 'all', 'lifetimes' and 'intensities'")
 
 
-def test_fit(regressor, input_vals, output):
+def test_fit(regressor, input_vals, output, output_type="all"):
     '''
     <output> is true output values.
+
+    <output_type> is one of "all", "lifetimes" and "intensities".
     '''
 
     prediction = regressor.predict(input_vals)
 
-    unprocess_output(prediction)
+    unprocess_output(prediction, output_type)
     output = output.copy()
-    unprocess_output(output)
+    unprocess_output(output, output_type)
 
     difference = abs(prediction - output)
 
-    format_str = ("{:.3f} "*6).format
+    output_len = len(output[0])
+    format_str = ("{:.3f} "*output_len).format
     logging.info("")
     logging.info("Comparison of prediction, real and the difference:")
     for i in range(len(prediction)):
@@ -114,6 +151,8 @@ def test_fit(regressor, input_vals, output):
 
 def main():
 
+    # setup logger
+    # -----------------
     log_folder = os.path.join(
         os.getcwd(),
         "logged_runs"
@@ -136,6 +175,7 @@ def main():
     )
 
     logging.info("starting now")
+    # =========================
 
     from read_data import get_train_or_test
     from read_data import get_components
@@ -143,6 +183,9 @@ def main():
     rng = np.random.default_rng()
 
     start = time.time()
+
+    # get training and test input, process them
+    # --------------------------
 
     folder_path = os.path.join(os.getcwd(), "simdata")
     data_files = os.listdir(folder_path)
@@ -168,13 +211,16 @@ def main():
     # plt.show()
 
 
-    #TODO: make a pipeline of regressor that also processes
-    # input
-    take_average_over = 5
+
+
+    #TODO: make a pipeline of regressor that also processes input
+    take_average_over = 2
     process_input(x_train, take_average_over=take_average_over)
     process_input(x_test, take_average_over=take_average_over)
 
     logging.info(f"averaging input over {take_average_over} bins")
+
+    # ====================================================
 
     # plt.plot(x_train[1])
     # plt.show()
@@ -184,15 +230,22 @@ def main():
 
     # print(x_train[45])
 
+    # get training and test output, process
+    # -------------------------------------
+
+    # what to fit on: lifetimes, intensities or both ("all")
+    output_to_fit = "intensities"
+
     metadata = read_metadata(folder_path)
-    y_train = get_components(metadata, train_files)
-    y_test = get_components(metadata, test_files)
+    y_train = get_components(metadata, train_files, output_to_fit)
+    y_test = get_components(metadata, test_files, output_to_fit)
 
     # print(y_train[0])
-    process_output(y_train)
+    process_output(y_train, output_to_fit)
     # print(y_train[0])
-    process_output(y_test)
+    process_output(y_test, output_to_fit)
 
+    # =======================================
 
     stop = time.time()
     logging.info("time to fetch and process test and train: " + str(stop-start))
@@ -230,11 +283,11 @@ def main():
         alpha=0.01,
         learning_rate="invscaling",
         power_t = 0.5,
-        max_iter=5e6,
+        max_iter=5e2,
         random_state=12345,
-        tol=0.001,
+        tol=0.0001,
         warm_start=True,
-        max_fun=15000,
+        max_fun=25000,
     )
 
     logging.info("\nParameters of regressor:")
@@ -249,31 +302,12 @@ def main():
     fit_end = time.time()
     logging.info(f"fitting took {fit_end-fit_start:.2f} seconds.")
 
-    # train_prediction = regressor.predict(x_train[0:2])
-    # print()
-    # print("predictions for train data:")
-    # print(train_prediction)
-    # print(y_train[0:2])
-    # print(train_prediction - y_train[0:2])
-
-    # # not necessarily the best for scoring here?
-    # print("R2 score:", regressor.score(x_train, y_train))
 
     test_with = 10
-
     logging.info("\n Testing fit with train data:")
-    test_fit(regressor, x_train[0:test_with], y_train[0:test_with])
-
-    # test_prediction = regressor.predict(x_test[0:2])
-    # print()
-    # print("predictions for test data:")
-    # print(test_prediction)
-    # print(y_test[0:2])
-    # print(test_prediction - y_test[0:2])
-    # print("R2 score:", regressor.score(x_test, y_test))
-
+    test_fit(regressor, x_train[0:test_with], y_train[0:test_with], output_to_fit)
     logging.info("\nTesting with test data:")
-    test_fit(regressor, x_test[0:test_with], y_test[0:test_with])
+    test_fit(regressor, x_test[0:test_with], y_test[0:test_with], output_to_fit)
 
     real_folder = os.path.join(
         os.getcwd(),
@@ -285,8 +319,8 @@ def main():
     real_metadata = read_metadata(real_folder, "metadata.json")
     real_x = get_train_or_test(real_folder, real_data_files)
     process_input(real_x, take_average_over=take_average_over)
-    real_y = get_components(real_metadata, real_data_files)
-    process_output(real_y)
+    real_y = get_components(real_metadata, real_data_files, output_to_fit)
+    process_output(real_y, output_to_fit)
 
     # real_prediction = regressor.predict(real_x)
     # format_str = ("{:.3f} "*6).format
@@ -298,7 +332,7 @@ def main():
     # print("R2 score:", regressor.score(real_x, real_y))
 
     logging.info("\nTesting fit with real data")
-    test_fit(regressor, real_x, real_y)
+    test_fit(regressor, real_x, real_y, output_to_fit)
 
 
 
