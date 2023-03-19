@@ -436,9 +436,9 @@ def random_input_prm():
     remaining = 1-bkg
 
     lifetimes = [
-        245+rng.uniform(low=-5,high=5),
-        400+rng.uniform(low=-5,high=5),
-        1500+rng.uniform(low=-5,high=5)
+        245+rng.uniform(low=-50,high=50),
+        400+rng.uniform(low=-80,high=80),
+        1500+rng.uniform(low=-150,high=150)
     ]
 
     
@@ -513,8 +513,8 @@ def write_many_simulations(sims_to_write, folder_name=None, random_input=None):
 def main():
 
     write_many_simulations(
-        sims_to_write=1980,
-        folder_name="simdata_more_random",
+        sims_to_write=2000,
+        folder_name="simdata_more_random2",
         random_input=True
     )
 
