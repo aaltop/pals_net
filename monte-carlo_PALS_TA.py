@@ -296,29 +296,42 @@ def write_simulation_data(
     input_prm:dict,
     folder_name:str=None,
     file_name_beginning:str=None,
-) -> None:
+    file_index:int=None
+) -> int:
     '''
     Write simulation data to a file.
 
     Pararameters
     ------------
 
-    input_prm : dict
+    ### input_prm : dict
         Input parameters for function sim_pals.
-    folder_name : str, default None
+
+    ### folder_name : str, default None
         Name of the folder to write data into.
         If not specified, defaults to "simdata"
         in current working directory.
-    file_name_beginning : str, default None
+
+    ### file_name_beginning : str, default None
         Name of file to write data into. Final file
         will be "<file_name_beginning>_<num>.pals", where
-        <num> is automatically determined based on how many files
-        there already are. Defaults to "simdata".
+        <num> is either <file_index> or any next available index
+        with zero padding. 
+        
+        If None, defaults to "simdata".
+
+    ### file_index : int, default None
+        The number of the file to try and write the data into. If
+        the corresponding file is already used, will try the next
+        files (following indices) until available or max index is reached.
+
+        If None, will try each index in order starting from 1.
 
     Returns
     -------
 
-    None
+    ### file_index : int
+        the number of the file that was written to
         
     '''
 
@@ -334,7 +347,8 @@ def write_simulation_data(
         os.mkdir(folder_path)
 
     # automatically determine the file name
-    file_index = 1
+    if file_index is None:
+        file_index = 1
     file_name_beginning = "simdata"
     file_name = "{0}_{1:05}.pals"
     while True:
@@ -344,6 +358,8 @@ def write_simulation_data(
         
         if os.path.isfile(file_path):
             file_index += 1
+            if file_index >= 100_000:
+                raise ValueError(f"file_index too high")
             continue
         break
 
@@ -360,11 +376,11 @@ def write_simulation_data(
             sep = " ",
             float_format="{:.18e}".format,
             index=False,
-            line_terminator="\n"
+            lineterminator="\n"
         )
 
     # Don't want to have simdata without
-    # the corresponding metatdata. Would
+    # the corresponding metadata. Would
     # be much easier to just write metadata
     # in the same file as the data, though.
     try:
@@ -372,6 +388,8 @@ def write_simulation_data(
             input_prm,
             final_file_name,
             folder_path)
+        
+        return file_index
     except BaseException as e:
         # maybe should write to stderr?
         print("\nException occured while writing metadata. Deleting simdata file.\n")
@@ -463,7 +481,7 @@ def random_input_prm():
     return input_prm
 
 
-def write_many_simulations(sims_to_write, folder_name=None, random_input=None):
+def write_many_simulations(sims_to_write, folder_name=None, random_input=False):
     '''
     Write multiple simulations to file; see function
     write_simulation_data for more information.
@@ -471,14 +489,14 @@ def write_many_simulations(sims_to_write, folder_name=None, random_input=None):
     Parameters
     ----------
 
-    sims_to_write : int
+    ### sims_to_write : int
         Number of simulations to write to file.
 
-    folder_name : string
+    ### folder_name : string
         Folder to write simulations into. See function
         "write_simulation_data" for more information.
     
-    random_input : Boolean
+    ### random_input : Boolean
         Whether to randomise input parameters.
 
     Returns
@@ -487,9 +505,7 @@ def write_many_simulations(sims_to_write, folder_name=None, random_input=None):
         None
     '''
 
-    if random_input is None:
-        random_input = False
-
+    if not random_input:
         input_prm = {"num_events": 1_000_000,
                     "bkg": 0.05,
                     "components": [(415, .10), (232, .50), (256, .30), (1200, .05)],
@@ -499,24 +515,39 @@ def write_many_simulations(sims_to_write, folder_name=None, random_input=None):
                     "sigma_stop": 68,
                     "offset": 2000}
 
+    file_index = None
 
     for i in range(sims_to_write):
         print("\033[K",end="")
         print(f"{i+1}/{sims_to_write}", end="\r")
+            
         if random_input:
-            write_simulation_data(random_input_prm(), folder_name=folder_name)
-        else:
-            write_simulation_data(input_prm, folder_name=folder_name)
+            input_prm = random_input_prm()
+
+        file_index = write_simulation_data(
+            input_prm, 
+            folder_name=folder_name,
+            file_index=file_index
+        )
+        
+        # write_simulation_data should return previously written
+        # file index, so add one to get next free one
+        file_index += 1
 
     print()
 
 def main():
+    import time
 
+    print("Starting to write simulations...")
+    start = time.time()
     write_many_simulations(
-        sims_to_write=2000,
+        sims_to_write=100,
         folder_name="simdata_more_random2",
         random_input=True
     )
+    stop = time.time()
+    print(f"Simulation writing took {stop-start} seconds.")
 
 if __name__ == "__main__":
 
