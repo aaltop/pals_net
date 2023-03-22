@@ -99,9 +99,6 @@ def get_components(metadata:dict, file_names:list, return_vals="all") -> list:
 
     all_comps = [0]*len(file_names)
 
-    for i,file_name in enumerate(file_names):
-        all_comps[i] = np.array(
-            metadata[file_name]["components"]).flatten()
         
     match return_vals:
         case "all":
@@ -117,7 +114,7 @@ def get_components(metadata:dict, file_names:list, return_vals="all") -> list:
                 all_comps[i] = np.array(
                 metadata[file_name]["components"]).flatten()[1::2]
         case _:
-            raise ValueError("<return_vals> must be one of 'all', 'lifetimes' and 'intensities'")
+            raise ValueError("<return_vals> must be one of 'all', 'lifetimes' or 'intensities'")
 
     return all_comps
 
@@ -142,6 +139,11 @@ def get_train_or_test(folder_path:str, file_names, col_names=None):
     Returns the counts for the data in the files <file_names>
     from the folder <folder_path>.
 
+    
+    Returns
+    -------
+
+    data : list of numpy arrays of counts
     '''
 
     if col_names is None:
