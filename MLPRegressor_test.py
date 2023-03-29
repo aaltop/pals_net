@@ -1,4 +1,3 @@
-from sklearn.neural_network import MLPRegressor
 import numpy as np
 import os
 import sys
@@ -20,26 +19,30 @@ import logging
 # the point is currently to always log anyway
 #pylint: disable=logging-not-lazy, logging-fstring-interpolation
 
-def process_input(data, num_of_channels=None, take_average_over=None):
+def process_input(data, num_of_channels=None, take_average_over=None, start_index=None):
     '''
     Cut off counts in <data> such that only data from the
     max value onwards up to <num_of_channels> beyond the max 
-    is considered, and takes non-rolling means of five values 
+    is considered, and takes non-rolling means of <take_average_over> values 
     of the result.
 
     Parameters
     ----------
-    data : list of numpy arrays
+    ### data : list of numpy arrays
         The counts for <data.size> simulated spectra.
 
-    num_of_channels : int
+    ### num_of_channels : int
         How many channels to take beyond the max channel,
         as in [max_chan:max_chan+num_of_channels]. Needs to be
         divisible by <take_average_over>. Default is 100.
 
-    take_average_over : int
+    ### take_average_over : int
         how many channels to average over. <num_of_channels> needs
         to be divisible by this. Default is 5.
+
+    ### start_index : int
+        The first index to include in the end result. If None,
+        takes the index of the max value.
 
     
     Returns
@@ -53,9 +56,10 @@ def process_input(data, num_of_channels=None, take_average_over=None):
         take_average_over = 5
 
     for i in range(len(data)):
-        max_index = data[i].argmax()
-        # average over five value groups (non-rolling)
-        averaged_data = data[i][max_index:max_index+num_of_channels].reshape((-1,take_average_over)).mean(axis=1)
+        if start_index is None:
+            start_index = data[i].argmax()
+        # average over <take_average_over> value groups (non-rolling)
+        averaged_data = data[i][start_index:start_index+num_of_channels].reshape((-1,take_average_over)).mean(axis=1)
         # normalise
         data[i] = averaged_data/averaged_data.max()
 
@@ -150,6 +154,8 @@ def test_fit(regressor, input_vals, output, output_type="all"):
 
 def main():
 
+    from sklearn.neural_network import MLPRegressor
+
     # setup logger
     # -----------------
     log_folder = os.path.join(
@@ -215,7 +221,6 @@ def main():
 
 
 
-
     #TODO: make a pipeline of regressor that also processes input
     num_of_channels = 100
     take_average_over = 5
@@ -278,15 +283,16 @@ def main():
     #     max_fun=15000
     # )
 
-    max_iter = 5e6
+    max_iter = int(5e6)
+    hidden_layers = np.array([150]*7)- 20*np.arange(0,7)
     regressor = MLPRegressor(
-        hidden_layer_sizes=[150]*7,
+        hidden_layer_sizes=hidden_layers,
         activation="relu",
         solver="lbfgs",
         alpha=0.001,
         learning_rate="invscaling",
         power_t = 0.5,
-        max_iter=int(5e6),
+        max_iter=max_iter,
         random_state=12345,
         tol=1e-4,
         warm_start=True,
