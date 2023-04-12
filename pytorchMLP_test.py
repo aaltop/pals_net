@@ -488,6 +488,10 @@ def model_testing():
     from read_data import get_train_or_test
     from read_data import get_components
 
+    from monte_carlo_PALS_TA import sim_pals
+
+    from scipy.stats import kstest
+
     rng = np.random.default_rng()
 
     start = time.time()
@@ -500,7 +504,7 @@ def model_testing():
     data_files = os.listdir(folder_path)
     data_files.remove("metadata.txt")
 
-    file_number = 3800
+    file_number = rng.integers(low=0, high=4001)
     data_file = [data_files[file_number]]
 
     x_train = get_train_or_test(folder_path, data_file)
@@ -546,8 +550,54 @@ def model_testing():
 
     pred *= y_train_col_max
 
+    pred = pred.flatten()
+    y_train = y_train.flatten()
+
     print(pred)
+    # so obviously the intensities are not currently constrained to
+    # be anything specifically, as my idea was originally that I'd like
+    # to first see if it can, on its own, get the right values. This
+    # does seem to be close to one and at least not greater, but it
+    # isn't so great to have it less than one either.
+    print(pred[1::2].sum())
     print(y_train)
+
+    pred_components = [pred[2*i:2*i+2].tolist() for i in range(3)]
+    pred_input = {"num_events": 1_000_000,
+                    "bkg": 0.0,
+                    "components": pred_components,
+                    "bin_size": 25,
+                    "time_gate": 15_000,
+                    "sigma_start": 68,
+                    "sigma_stop": 68,
+                    "offset": 2000}
+    pred_bins, pred_hist = sim_pals(pred_input, rng)
+
+    y_train_components = [y_train[2*i:2*i+2].tolist() for i in range(3)]
+
+    y_train_input = {"num_events": 1_000_000,
+                    "bkg": 0.0,
+                    "components": y_train_components,
+                    "bin_size": 25,
+                    "time_gate": 15_000,
+                    "sigma_start": 68,
+                    "sigma_stop": 68,
+                    "offset": 2000}
+    y_train_bins, y_train_hist = sim_pals(y_train_input, rng)
+
+    print(kstest(pred_hist, y_train_hist))
+
+    plt.plot(pred_bins, pred_hist, label="predicted")
+    plt.plot(y_train_bins, y_train_hist, linestyle="dashed", label="true")
+    # plt.plot(pred_bins, pred_hist-y_train_hist, label="residual")
+
+    plt.legend()
+    plt.xlabel("time")
+    plt.ylabel("counts")
+    plt.yscale("log")
+    plt.show()
+
+
 
     # https://wiki.helsinki.fi/pages/viewpage.action?pageId=353490171
     
