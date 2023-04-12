@@ -226,14 +226,18 @@ def save_model_state_dict(state_dict:dict, date_and_time:str, folder:str=None):
     
     model_file_name = "model" + date_and_time + ".pt"
 
+    file_path = os.path.join(models_folder,model_file_name)
+
     with open(
-        os.path.join(models_folder,model_file_name), 
+        file_path, 
         "wb") as f:
 
         torch.save(state_dict,f)
 
+    logging.info(f"Saved model to {file_path}")
 
-def main():
+
+def model_training():
 
     
     # setup logger
@@ -250,7 +254,7 @@ def main():
     file_name = "fit" + date_str + ".log"
     file_path = os.path.join(log_folder, file_name)
 
-    handlers = logging.StreamHandler(sys.stdout), logging.FileHandler(file_path)
+    handlers = logging.StreamHandler(sys.stdout), logging.FileHandler(file_path, encoding="utf-8")
 
     logging.basicConfig(
         style="{",
@@ -324,10 +328,11 @@ def main():
     y_test = conv_to_tensor(y_test)
 
     # normalise to [0,1]
-    y_train = conv_to_tensor(y_train)
     y_train_col_max = y_train.amax(dim=0)
     y_train /= y_train_col_max
-    y_test = conv_to_tensor(y_test)/y_train_col_max
+    y_test = y_test/y_train_col_max
+    logging.info("\n[0,1] normalisation of output by dividing with")
+    logging.info(y_train_col_max)
 
     
     # match output_to_fit:
@@ -386,7 +391,7 @@ def main():
     losses = [0]*epochs
     logging.info(f"\nEpochs: {epochs}")
     start = time.time()
-    tolerance = 1e-5
+    tolerance = 1e-7
     logging.info(f"tolerance: {tolerance}")
     previous_loss = np.inf
     previous_test_r2 = -np.inf
@@ -478,7 +483,78 @@ def main():
     #TODO: test optimiser stuff, make adaptive learning rate? test
     # LBFGS again
 
+def model_testing():
+
+    from read_data import get_train_or_test
+    from read_data import get_components
+
+    rng = np.random.default_rng()
+
+    start = time.time()
+
+    # get training and test input, process them
+    # --------------------------
+
+    folder = "simdata_more_random3"
+    folder_path = os.path.join(os.getcwd(), folder)
+    data_files = os.listdir(folder_path)
+    data_files.remove("metadata.txt")
+
+    file_number = 3800
+    data_file = [data_files[file_number]]
+
+    x_train = get_train_or_test(folder_path, data_file)
+
+    num_of_channels = x_train[0].shape[0]
+    take_average_over = 5
+    start_index = 0
+    process_input(x_train, num_of_channels, take_average_over=take_average_over, start_index=start_index)
+
+
+    # need to use float32 due to problems with mismatch, but should not be a problem
+    conv_to_tensor = lambda val: torch.tensor(np.array(val), dtype=torch.float32)
+
+    x_train = conv_to_tensor(x_train)
+
+    # ================================================
+
+    # what to fit on: lifetimes, intensities or both ("all")
+    output_to_fit = "all"
+
+    # get output data
+    metadata = read_metadata(folder_path)
+    y_train = get_components(metadata, data_file, output_to_fit)
+    y_train = conv_to_tensor(y_train)
+    
+
+    model_to_test = r"C:\Users\OMISTAJA\Desktop\Läksyt\2022-04\DSProject\Data_science_project_2023\saved_models\model20230412151303.pt"
+
+    layer_sizes = [120, 150, 135, 120, 105, 90, 75, 60, 45, 30, 15, 6]
+
+    model = MLP(layer_sizes)
+    with open(model_to_test, "rb") as f:
+        state_dict = torch.load(f)
+
+    model.load_state_dict(state_dict)
+    model.eval()
+
+    pred = model(x_train).detach()
+
+    y_train_col_max = conv_to_tensor(
+        [2.9490e+02, 8.4497e-01, 4.7999e+02, 2.9710e-01, 1.7999e+03, 3.9749e-02]
+    )
+
+    pred *= y_train_col_max
+
+    print(pred)
+    print(y_train)
+
+    # https://wiki.helsinki.fi/pages/viewpage.action?pageId=353490171
+    
+    
+
+
 
 if __name__ == "__main__":
 
-    main()
+    model_testing()
