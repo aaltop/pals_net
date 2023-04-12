@@ -204,7 +204,33 @@ def evaluate(model, inputs, outputs, batch_size, loss_func):
         logging.info(epoch_loss/num_batches)
         
 
+def save_model_state_dict(state_dict:dict, date_and_time:str, folder:str=None):
+    '''
+    Save a <state_dict>, as returned from a PyTorch model's
+    .state_dict() method. <folder> specifies the folder to save
+    the data in, and defaults to "saved_models" if None.
 
+    The file will be called model<date_and_time>.pt.
+    '''
+
+    if folder is None:
+        folder = "saved_models"
+
+    models_folder = os.path.join(
+        os.getcwd(),
+        folder
+    )
+
+    if not os.path.exists(models_folder):
+        os.mkdir(models_folder)
+    
+    model_file_name = "model" + date_and_time + ".pt"
+
+    with open(
+        os.path.join(models_folder,model_file_name), 
+        "wb") as f:
+
+        torch.save(state_dict,f)
 
 
 def main():
@@ -220,7 +246,8 @@ def main():
     if not (os.path.exists(log_folder)):
         os.mkdir(log_folder)
 
-    file_name = "fit" + time.strftime("%Y%m%d%H%M%S") + ".log"
+    date_str = time.strftime("%Y%m%d%H%M%S")
+    file_name = "fit" + date_str + ".log"
     file_path = os.path.join(log_folder, file_name)
 
     handlers = logging.StreamHandler(sys.stdout), logging.FileHandler(file_path)
@@ -251,7 +278,7 @@ def main():
     data_files = os.listdir(folder_path)
     data_files.remove("metadata.txt")
 
-    train_size = 1800
+    train_size = 3800
     test_size = 200
 
     logging.info(f"train size: {train_size}")
@@ -271,6 +298,7 @@ def main():
     num_of_channels = x_train[0].shape[0]
     take_average_over = 5
     start_index = 0
+    logging.info(f"averaging input over {take_average_over} bins")
     process_input(x_train, num_of_channels, take_average_over=take_average_over, start_index=start_index)
     process_input(x_test, num_of_channels, take_average_over=take_average_over, start_index=start_index)
 
@@ -281,12 +309,13 @@ def main():
     x_train = conv_to_tensor(x_train)
     x_test = conv_to_tensor(x_test)
 
-    logging.info(f"averaging input over {take_average_over} bins")
+    # ================================================
 
     # what to fit on: lifetimes, intensities or both ("all")
-    output_to_fit = "lifetimes"
+    output_to_fit = "all"
     logging.info(f"Fitting over {output_to_fit}")
 
+    # get output data
     metadata = read_metadata(folder_path)
     y_train = get_components(metadata, train_files, output_to_fit)
     y_test = get_components(metadata, test_files, output_to_fit)
@@ -295,10 +324,10 @@ def main():
     y_test = conv_to_tensor(y_test)
 
     # normalise to [0,1]
-    # y_train = conv_to_tensor(y_train)
-    # y_train_col_max = y_train.amax(dim=0)
-    # y_train /= y_train_col_max
-    # y_test = conv_to_tensor(y_test)/y_train_col_max
+    y_train = conv_to_tensor(y_train)
+    y_train_col_max = y_train.amax(dim=0)
+    y_train /= y_train_col_max
+    y_test = conv_to_tensor(y_test)/y_train_col_max
 
     
     # match output_to_fit:
@@ -319,16 +348,18 @@ def main():
     stop = time.time()
     logging.info("time to fetch and process test and train: " + str(stop-start))
 
-    #ensure correct functioning by reshape
-    y_train = y_train[:,-2].reshape((-1,1))
-    y_test = y_test[:,-2].reshape((-1,1))
+    # ensure correct functioning by reshape
+    # (this is for fitting only to one or some of the outputs)
+    # comp = 2
+    # y_train = y_train[:,comp].reshape((-1,1))
+    # y_test = y_test[:,comp].reshape((-1,1))
 
     input_size = x_train[0].shape[0]
     output_size = y_train[0].shape[0]
 
     layer_sizes = []
     layer_sizes.append(input_size)
-    # decrease hidden layer size each layer TODO: maybe test with different values here?
+    # decrease hidden layer size each layer 
     hidden_layer_sizes = [150-i*15 for i in range(10)]
     layer_sizes.extend(hidden_layer_sizes)
     layer_sizes.append(output_size)
@@ -337,7 +368,7 @@ def main():
 
     model = MLP(layer_sizes)
     loss_func = torch.nn.MSELoss()
-    optim = torch.optim.Adam(model.parameters(), lr=0.001)
+    optim = torch.optim.Adam(model.parameters(), lr=0.0005)
     # optim = torch.optim.LBFGS(model.parameters(), max_iter=5, lr=0.01)
 
     logging.info("Optimiser:")
@@ -348,13 +379,17 @@ def main():
 
     evaluate(model, x_train[:15,], y_train[:15,], batch_size, loss_func)
 
-    epochs = 4000
+    # Do optimisation
+    #-------------------------------------
+
+    epochs = 6000
     losses = [0]*epochs
     logging.info(f"\nEpochs: {epochs}")
     start = time.time()
-    tolerance = 1e-7
+    tolerance = 1e-5
     logging.info(f"tolerance: {tolerance}")
     previous_loss = np.inf
+    previous_test_r2 = -np.inf
     r2_scores = []
     for epoch in range(epochs):
         print("\033[K",end="")
@@ -363,10 +398,15 @@ def main():
         current_loss = train(model, x_train, y_train, batch_size, optim, loss_func)
         losses[epoch] = current_loss
 
+        # save r2 evaluations, keep track of best model parameters
         if 0 == epoch%10:
+            train_r2, test_r2 = r2_evaluate(model, x_train, y_train, x_test, y_test)
             r2_scores.append(
-                np.array([float(epoch)]+r2_evaluate(model, x_train, y_train, x_test, y_test))
+                np.array([float(epoch)]+[train_r2,test_r2])
             )
+            if previous_test_r2 < test_r2:
+                previous_test_r2 = test_r2
+                best_model_state_dict = model.state_dict()
 
         # tolerance
         if abs(current_loss-previous_loss)/previous_loss <= tolerance:
@@ -374,6 +414,15 @@ def main():
             break
 
         previous_loss = current_loss
+
+    # =======================================
+
+
+    # save model
+    save_model_state_dict(
+        best_model_state_dict,
+        date_str
+    )
         
     logging.info(f"Total epochs run: {epoch+1}")
         
@@ -383,7 +432,7 @@ def main():
     # y_train *= y_train_col_max
     # y_test *= y_train_col_max
 
-    r2_only = True
+    r2_only = False
     if r2_only:
         r2_evaluate(model, x_train, y_train, x_test, y_test, do_logging=True)
     else:
@@ -403,14 +452,16 @@ def main():
 
     # first column has epoch, other two have train and test r2
     r2_scores = np.array(r2_scores)
+    test_r2 = r2_scores[:,2]
     train_r2 = r2_scores[:,1]
+    epoch_r2 = r2_scores[:,0]
 
-    # include only scores greater than zero
-    r2_geq_zero = np.nonzero(train_r2 >= 0)
-
-    train_r2 = train_r2[r2_geq_zero]
-    epoch_r2 = r2_scores[:,0][r2_geq_zero]
-    test_r2 = r2_scores[:,2][r2_geq_zero]
+    # include only scores greater than zero, if there are positive scores
+    r2_geq_zero = np.nonzero(test_r2 >= 0)
+    if np.any(r2_geq_zero):
+        train_r2 = r2_scores[:,1][r2_geq_zero]
+        epoch_r2 = r2_scores[:,0][r2_geq_zero]
+        test_r2 = test_r2[r2_geq_zero]
 
     logging.info("Max test R2:")
     logging.info(test_r2.max())
