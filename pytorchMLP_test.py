@@ -206,7 +206,7 @@ def evaluate(model, inputs, outputs, batch_size, loss_func):
 
 def save_model_state_dict(state_dict:dict, date_and_time:str, folder:str=None):
     '''
-    Save a <state_dict>, as returned from a PyTorch model's
+    Save a <state_dict>, such as the one returned from a PyTorch model's
     .state_dict() method. <folder> specifies the folder to save
     the data in, and defaults to "saved_models" if None.
 
@@ -239,6 +239,11 @@ def save_model_state_dict(state_dict:dict, date_and_time:str, folder:str=None):
 
 def model_training():
 
+    from read_data import get_train_or_test
+    from read_data import get_components
+
+    from copy import deepcopy
+
     
     # setup logger
     # -----------------
@@ -265,9 +270,6 @@ def model_training():
 
     logging.info("starting now")
     # =========================
-
-    from read_data import get_train_or_test
-    from read_data import get_components
 
     rng = np.random.default_rng()
 
@@ -390,12 +392,12 @@ def model_training():
     epochs = 6000
     losses = [0]*epochs
     logging.info(f"\nEpochs: {epochs}")
-    start = time.time()
-    tolerance = 1e-7
+    tolerance = 1e-8
     logging.info(f"tolerance: {tolerance}")
     previous_loss = np.inf
     previous_test_r2 = -np.inf
     r2_scores = []
+    start = time.time()
     for epoch in range(epochs):
         print("\033[K",end="")
         print(f"{epoch+1}/{epochs}", end="\r")
@@ -411,7 +413,7 @@ def model_training():
             )
             if previous_test_r2 < test_r2:
                 previous_test_r2 = test_r2
-                best_model_state_dict = model.state_dict()
+                best_model_state_dict = deepcopy(model.state_dict())
 
         # tolerance
         if abs(current_loss-previous_loss)/previous_loss <= tolerance:
@@ -420,19 +422,23 @@ def model_training():
 
         previous_loss = current_loss
 
+    stop = time.time()
+    logging.info(f"Fitting took {stop-start} seconds")
+
     # =======================================
 
-
+    whole_state_dict = {
+        "model_layers": layer_sizes,
+        "model_state_dict": best_model_state_dict,
+        "normalisation": y_train_col_max
+    }
     # save model
     save_model_state_dict(
-        best_model_state_dict,
+        whole_state_dict,
         date_str
     )
         
     logging.info(f"Total epochs run: {epoch+1}")
-        
-    stop = time.time()
-    logging.info(f"Fitting took {stop-start} seconds")
 
     # y_train *= y_train_col_max
     # y_test *= y_train_col_max
@@ -488,7 +494,7 @@ def model_testing():
     from read_data import get_train_or_test
     from read_data import get_components
 
-    from monte_carlo_PALS_TA import sim_pals
+    from monte_carlo_PALS_TA import sim_pals, sim_pals_separate, concat_events, do_histogram
 
     from scipy.stats import kstest
 
@@ -531,24 +537,25 @@ def model_testing():
     y_train = conv_to_tensor(y_train)
     
 
-    model_to_test = r"C:\Users\OMISTAJA\Desktop\Läksyt\2022-04\DSProject\Data_science_project_2023\saved_models\model20230412151303.pt"
+    model_to_test = r"C:\Users\OMISTAJA\Desktop\Läksyt\2022-04\DSProject\Data_science_project_2023\saved_models\model20230413221636.pt"
 
-    layer_sizes = [120, 150, 135, 120, 105, 90, 75, 60, 45, 30, 15, 6]
-
-    model = MLP(layer_sizes)
     with open(model_to_test, "rb") as f:
         state_dict = torch.load(f)
 
-    model.load_state_dict(state_dict)
+
+    model = MLP(state_dict["model_layers"])
+    model.load_state_dict(state_dict["model_state_dict"])
     model.eval()
 
     pred = model(x_train).detach()
 
-    y_train_col_max = conv_to_tensor(
-        [2.9490e+02, 8.4497e-01, 4.7999e+02, 2.9710e-01, 1.7999e+03, 3.9749e-02]
-    )
+    # y_train_col_max = conv_to_tensor(
+    #     [2.9490e+02, 8.4497e-01, 4.7999e+02, 2.9710e-01, 1.7999e+03, 3.9749e-02]
+    # )
 
-    pred *= y_train_col_max
+
+
+    pred *= state_dict["normalisation"]
 
     pred = pred.flatten()
     y_train = y_train.flatten()
@@ -561,6 +568,10 @@ def model_testing():
     # isn't so great to have it less than one either.
     print(pred[1::2].sum())
     print(y_train)
+
+
+    # TODO: have a "naive" prediction of just the mean components,
+    # see how that compares to everything
 
     pred_components = [pred[2*i:2*i+2].tolist() for i in range(3)]
     pred_input = {"num_events": 1_000_000,
@@ -585,11 +596,16 @@ def model_testing():
                     "offset": 2000}
     y_train_bins, y_train_hist = sim_pals(y_train_input, rng)
 
-    print(kstest(pred_hist, y_train_hist))
+    print("Two-sample kstest")
+    print(kstest(y_train_hist, pred_hist))
+    print(np.abs(pred_hist-y_train_hist).max())
 
     plt.plot(pred_bins, pred_hist, label="predicted")
     plt.plot(y_train_bins, y_train_hist, linestyle="dashed", label="true")
     # plt.plot(pred_bins, pred_hist-y_train_hist, label="residual")
+
+    # plt.plot(np.sort(pred_hist)/pred_hist.max(), label="predicted CDF")
+    # plt.plot(np.sort(y_train_hist)/y_train_hist.max(), linestyle="dashed", label="true CDF")
 
     plt.legend()
     plt.xlabel("time")
