@@ -3,6 +3,40 @@ import pandas as pd
 import os
 import numpy as np
 
+def get_data_files(
+        data_folder,
+        train_size,
+        test_size,
+        rng,
+        permute_data=False
+    ):
+
+    '''
+    Gets the data files (names of data files) in <data_folder>,
+    optionally does permutation to shuffle train and test.
+
+    Returns
+    -------
+
+    ### train_files, test_files : list of strings
+        Names of the train and test files in <data_folder>.
+    '''
+
+    folder_path = os.path.join(os.getcwd(), data_folder)
+    data_files = os.listdir(folder_path)
+    data_files.remove("metadata.txt")
+
+
+    if permute_data:
+        perm_data_files = rng.permutation(data_files)
+        train_files = perm_data_files[:train_size]
+        test_files = perm_data_files[train_size:train_size+test_size]
+    else:
+        train_files = data_files[:train_size]
+        test_files = data_files[train_size:train_size+test_size]
+
+    return train_files, test_files
+
 def read_metadata(folder_path, metadata_name=None) -> dict:
 
     if metadata_name is None:
@@ -139,11 +173,26 @@ def get_train_or_test(folder_path:str, file_names, col_names=None):
     Returns the counts for the data in the files <file_names>
     from the folder <folder_path>.
 
+
+    Parameters
+    ----------
+
+    ### folder_path : string
+        path of the folder containing the data
+    
+    ### file_names : list of strings
+        names of the data files to get counts from
+
+    ### col_names : tuple of strings
+        the names of the columns of the data. If None, defaults
+        to ("time_ps", "counts")
+
+    
     
     Returns
     -------
 
-    data : list of numpy arrays of counts
+    ### data : list of numpy arrays of counts
     '''
 
     if col_names is None:
