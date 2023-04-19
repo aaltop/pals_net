@@ -1,6 +1,15 @@
 import os
 import torch
 import logging
+import torch
+import numpy as np
+
+def convert_to_tensor(val):
+    '''
+    The preferred way to convert to PyTorch tensor due to certain problems
+    with dtype.
+    '''
+    return torch.tensor(np.array(val), dtype=torch.float32)
 
 def r2_score(pred,y):
     '''
