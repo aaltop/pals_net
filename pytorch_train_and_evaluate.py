@@ -43,7 +43,7 @@ class Model:
     
     '''
 
-    def __init__(self, model:MLP, optim, loss_func):
+    def __init__(self, model, optim, loss_func):
 
         self.inner_model = model
         self.optim = optim
@@ -250,7 +250,21 @@ def fetch_and_process_input(
 
     return convert_to_tensor(inputs)
 
-def fetch_output(folder_path, data_files):
+def fetch_output(data_folder, data_files):
+    '''
+    
+
+    Returns
+    -------
+
+    ### outputs : PyTorch tensor
+        The components that created the simulation data.
+    '''
+
+    folder_path = os.path.join(
+        os.getcwd(),
+        data_folder
+    )
     
     metadata = read_metadata(folder_path)
     outputs = get_components(metadata, data_files)
@@ -273,35 +287,26 @@ def model_training(
 
     ### train_data/test_data : list (length 2) of tensors
         Train/test input and output.
+
+
+    Returns
+    -------
+
+    ### losses : list of floats
+        The losses for each epoch.
+
+    ### r2_scores : NumPy array of of arrays of floats
+        Each element is an array of 
+        (epoch, train r-squared, test r-squared). These are calculated
+        every 10 epochs.
+    
+    ### best_model_state_dict : PyTorch model's state_dict
+        The "best" state dict of the model. Best in this case
+        means the model that had the highest test r-squared score. Note
+        that the r-squared score is only calculated every 10 epochs.
     '''
 
     from copy import deepcopy
-
-    # setup logger (TODO: maybe have a more sensible place for this?)
-    # -----------------
-    log_folder = os.path.join(
-        os.getcwd(),
-        "logged_runs_pt"
-    )
-
-    if not (os.path.exists(log_folder)):
-        os.mkdir(log_folder)
-
-    date_str = time.strftime("%Y%m%d%H%M%S")
-    file_name = "fit" + date_str + ".log"
-    file_path = os.path.join(log_folder, file_name)
-
-    handlers = logging.StreamHandler(sys.stdout), logging.FileHandler(file_path, encoding="utf-8")
-
-    logging.basicConfig(
-        style="{",
-        format="{message}",
-        level=logging.INFO,
-        handlers=handlers
-    )
-
-    logging.info("starting now")
-    # =========================
 
     x_train, y_train = train_data
     x_test, y_test = test_data
@@ -354,5 +359,159 @@ def model_training(
 
     stop = time.time()
     logging.info(f"Fitting took {stop-start} seconds")
+    logging.info(f"Total epochs run: {epoch+1}")
 
     return losses, r2_scores, best_model_state_dict
+
+# TODO: Add all the other stuff from the earlier file
+
+def plot_training_results(losses, r2_scores):
+
+    fig, ax = plt.subplots(2,1)
+
+    ax[0].plot(np.arange(len(losses))+1,losses)
+    ax[0].set_xlabel("epoch")
+    ax[0].set_ylabel("epoch loss")
+    ax[0].set_yscale("log")
+
+
+    # first column has epoch, other two have train and test r2
+    r2_scores = np.array(r2_scores)
+    test_r2 = r2_scores[:,2]
+    train_r2 = r2_scores[:,1]
+    epoch_r2 = r2_scores[:,0]
+
+    # include only scores greater than zero, if there are positive scores
+    r2_geq_zero = np.nonzero(test_r2 >= 0)
+    if np.any(r2_geq_zero):
+        train_r2 = r2_scores[:,1][r2_geq_zero]
+        epoch_r2 = r2_scores[:,0][r2_geq_zero]
+        test_r2 = test_r2[r2_geq_zero]
+
+    logging.info("Max test R2:")
+    logging.info(test_r2.max())
+
+    ax[1].plot(epoch_r2, train_r2, label="Train R2")
+    ax[1].plot(epoch_r2, test_r2, label="Test R2")
+    ax[1].set_xlabel("epoch")
+    ax[1].set_ylabel("r2 score")
+    ax[1].legend()
+    ax[1].grid()
+    plt.show()
+
+
+
+def main():
+
+    # setup logger
+    # -----------------
+    log_folder = os.path.join(
+        os.getcwd(),
+        "logged_runs_pt"
+    )
+
+    if not (os.path.exists(log_folder)):
+        os.mkdir(log_folder)
+
+    date_str = time.strftime("%Y%m%d%H%M%S")
+    file_name = "fit" + date_str + ".log"
+    file_path = os.path.join(log_folder, file_name)
+
+    handlers = logging.StreamHandler(sys.stdout), logging.FileHandler(file_path, encoding="utf-8")
+
+    logging.basicConfig(
+        style="{",
+        format="{message}",
+        level=logging.INFO,
+        handlers=handlers
+    )
+    # =========================
+
+    rng = np.random.default_rng()
+
+    # Get inputs and outputs, process
+    # --------------------------------------
+
+    print("Starting data fetch process...")
+    start = time.time()
+
+    data_folder = "simdata_more_random3"
+    train_size = 3800
+    test_size = 200
+    train_files, test_files = get_data_files(
+        data_folder,
+        train_size,
+        test_size,
+        rng
+    )
+
+    x_train = fetch_and_process_input(data_folder,train_files)
+    x_test = fetch_and_process_input(data_folder,test_files)
+
+    y_train = fetch_output(data_folder,train_files)
+    y_test = fetch_output(data_folder,test_files)
+
+    # normalise outputs based on train output (could be problematic
+    # if values in y_test are larger than in y_train?)
+    y_train_col_max = y_train.amax(dim=0)
+    y_train /= y_train_col_max
+    y_test /= y_train_col_max
+
+    end = time.time()
+    print("Data fetch took", start-end, " seconds.")
+    # ======================================
+
+    # Define the model
+    # --------------------------------------
+
+    input_size = x_train[0].shape[0]
+    output_size = y_train[0].shape[0]
+
+    layer_sizes = []
+    layer_sizes.append(input_size)
+    # decrease hidden layer size each layer 
+    hidden_layer_sizes = [150-i*15 for i in range(10)]
+    layer_sizes.extend(hidden_layer_sizes)
+    layer_sizes.append(output_size)
+
+    logging.info(f"\nlayer sizes: {layer_sizes}")
+
+    model = Model(
+        MLP(layer_sizes),
+        torch.optim.Adam(model.parameters(), lr=0.0005),
+        torch.nn.MSELoss()
+    )
+
+    logging.info("\nUsed optimiser:")
+    logging.info(model.optim)
+    # ======================================
+
+    # Do training
+    # --------------------------------------
+    print("Beginning training...")
+
+    start = time.time()
+    losses, r2_scores, best_model_state_dict = model_training(
+        (x_train, y_train),
+        (x_test, y_test),
+        model
+
+    )
+    end = time.time()
+
+    logging.info(f"Training took {end-start} seconds")
+    # ======================================
+
+    # save model for easy use later
+    # --------------------------------------
+    whole_state_dict = {
+        "model_layers": layer_sizes,
+        "model_state_dict": best_model_state_dict,
+        "normalisation": y_train_col_max
+    }
+
+    save_model_state_dict(whole_state_dict,date_str)
+    # ======================================
+
+    plot_training_results(losses, r2_scores)
+
