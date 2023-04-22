@@ -23,10 +23,10 @@ from pytorch_helpers import (
 
 from pytorchMLP import MLP
 
+_rng = np.random.default_rng()
 
-
-
-
+# It's kind of a stupid name, but don't no what
+# else to call it
 class Model:
     '''
 
@@ -58,7 +58,7 @@ class Model:
 
         epoch_loss = 0
 
-        self.model.train()
+        self.inner_model.train()
 
         # TODO: could make a proper dataloader thing for this
         num_batches = inputs.shape[0]//batch_size
@@ -74,7 +74,7 @@ class Model:
 
             self.optim.zero_grad()
 
-            pred = self.model(x)
+            pred = self.inner_model(x)
 
             # print(pred)
 
@@ -102,7 +102,7 @@ class Model:
 
             epoch_loss = 0
 
-            self.model.eval()
+            self.inner_model.eval()
 
             # TODO: could make a proper dataloader thing for this
             num_batches = inputs.shape[0]//batch_size
@@ -113,7 +113,7 @@ class Model:
                 x = inputs[i*batch_size:(i+1)*batch_size,:]
                 y = outputs[i*batch_size:(i+1)*batch_size,:]
 
-                pred = self.model(x)
+                pred = self.inner_model(x)
 
                 logging.info("prediction:")
                 logging.info(pred)
@@ -126,7 +126,7 @@ class Model:
                 logging.info("loss:")
                 logging.info(loss.item())
                 logging.info("R2:")
-                logging.info(r2_score(pred,y).item())
+                logging.info(r2_score(pred,y).mean().item())
                 epoch_loss += loss.item()
 
             logging.info("mean loss:")
@@ -141,13 +141,13 @@ class Model:
         Returns
         -------
 
-        ### train_r2, test_r2
+        ### r2
         '''
 
-        self.model.eval()
+        self.inner_model.eval()
         with torch.no_grad():
 
-            r2 = r2_score(self.model(inputs), outputs).item()
+            r2 = r2_score(self.inner_model(inputs), outputs).mean().item()
 
         if do_logging:
             logging.info("\nR-squared:")
@@ -211,15 +211,21 @@ def fetch_and_process_input(
         start_index=None
         ):
     '''
-    Fetch and process the train and test input data.
+    Fetch and process train/test input data.
 
     Parameters
     ----------
+
+    ### data_files : list of strings
+        The names of the files which contain the input data. Should
+        be a list also for just one file.
+
 
     ### take_average_over : int
         In processing the input, a non-rolling average is calculated.
         This determines how many data points are included in each 
         averaging.
+        
 
 
     Returns
@@ -402,6 +408,9 @@ def plot_training_results(losses, r2_scores):
 
 
 def main():
+    '''
+    Performs the training process of a model.
+    '''
 
     # setup logger
     # -----------------
@@ -427,8 +436,6 @@ def main():
     )
     # =========================
 
-    rng = np.random.default_rng()
-
     # Get inputs and outputs, process
     # --------------------------------------
 
@@ -442,7 +449,7 @@ def main():
         data_folder,
         train_size,
         test_size,
-        rng
+        _rng
     )
 
     x_train = fetch_and_process_input(data_folder,train_files)
@@ -458,7 +465,7 @@ def main():
     y_test /= y_train_col_max
 
     end = time.time()
-    print("Data fetch took", start-end, " seconds.")
+    print("Data fetch took", end-start, " seconds.")
     # ======================================
 
     # Define the model
@@ -476,10 +483,12 @@ def main():
 
     logging.info(f"\nlayer sizes: {layer_sizes}")
 
+    mlp = MLP(layer_sizes)
+
     model = Model(
-        MLP(layer_sizes),
-        torch.optim.Adam(model.parameters(), lr=0.0005),
-        torch.nn.MSELoss()
+        mlp,
+        torch.optim.Adam(mlp.parameters(), lr=0.0005),
+        torch.nn.MSELoss(),
     )
 
     logging.info("\nUsed optimiser:")
@@ -490,28 +499,38 @@ def main():
     # --------------------------------------
     print("Beginning training...")
 
-    start = time.time()
+    epochs = 6000
+    tol = 1e-8
     losses, r2_scores, best_model_state_dict = model_training(
         (x_train, y_train),
         (x_test, y_test),
-        model
+        model,
+        epochs,
+        tol
+
 
     )
-    end = time.time()
 
     logging.info(f"Training took {end-start} seconds")
     # ======================================
 
     # save model for easy use later
     # --------------------------------------
-    whole_state_dict = {
-        "model_layers": layer_sizes,
-        "model_state_dict": best_model_state_dict,
-        "normalisation": y_train_col_max
-    }
 
-    save_model_state_dict(whole_state_dict,date_str)
+    save_model = True
+    if save_model:
+
+        whole_state_dict = {
+            "model_layers": layer_sizes,
+            "model_state_dict": best_model_state_dict,
+            "normalisation": y_train_col_max
+        }
+
+        save_model_state_dict(whole_state_dict,date_str)
     # ======================================
 
     plot_training_results(losses, r2_scores)
 
+
+if __name__ == "__main__":
+    main()
