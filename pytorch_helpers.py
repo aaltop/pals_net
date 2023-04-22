@@ -13,12 +13,14 @@ def convert_to_tensor(val):
 
 def r2_score(pred,y):
     '''
-    R-squared scoring for pytorch tensors.
+    R-squared scoring for pytorch tensors. Excepts <y> and <pred>
+    to be column-oriented: the sums as well as the mean of <y> will be 
+    taken column-wise.
     '''
 
     return (1-
-            ((y-pred)**2).sum()/
-            ((y-y.mean(dim=0))**2).sum()
+            ((y-pred)**2).sum(dim=0)/
+            ((y-y.mean(dim=0))**2).sum(dim=0)
         )
 
 def save_model_state_dict(state_dict:dict, date_and_time:str, folder:str=None):
