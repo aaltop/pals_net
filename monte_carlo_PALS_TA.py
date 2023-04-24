@@ -10,8 +10,10 @@ import pandas as pd
 import json
 import os
 
+_rng = np.random_default_rng()
 
-def detector_response(event_times, sigma, rng):
+
+def detector_response(event_times, sigma):
     """
     Broaden detection time by detector's time response.
 
@@ -31,10 +33,10 @@ def detector_response(event_times, sigma, rng):
 
     """
     size = np.size(event_times)
-    event_times += rng.normal(0, sigma, size)
+    event_times += _rng.normal(0, sigma, size)
 
 
-def sim_bkg(num_counts, time_gate, rng):
+def sim_bkg(num_counts, time_gate):
     """
     Simulate the randomly distributed background, aka random false coincidence
 
@@ -51,12 +53,12 @@ def sim_bkg(num_counts, time_gate, rng):
         Generated array of background events.
 
     """
-    bkg_events = rng.uniform(0, time_gate, num_counts)
+    bkg_events = _rng.uniform(0, time_gate, num_counts)
 
     return bkg_events
 
 
-def sim_coinc(num_counts, lifetime, sigma_start, sigma_stop, offset, rng):
+def sim_coinc(num_counts, lifetime, sigma_start, sigma_stop, offset):
     """
     Simulate the coincidence events for a given positron component.
 
@@ -81,11 +83,11 @@ def sim_coinc(num_counts, lifetime, sigma_start, sigma_stop, offset, rng):
     """
     starts = np.zeros(num_counts)
     # Broaden detection time by detector's time response
-    detector_response(starts, sigma_start, rng)
+    detector_response(starts, sigma_start, _rng)
 
-    stops = rng.exponential(lifetime, num_counts)
+    stops = _rng.exponential(lifetime, num_counts)
     # # Broaden detection time by detector's time response
-    detector_response(stops, sigma_stop, rng)
+    detector_response(stops, sigma_stop, _rng)
     events = stops - starts + offset
 
     return events
@@ -116,7 +118,7 @@ def do_histogram(events, time_gate, bin_size):
     return hist, bins[:-1]
 
 
-def sim_pals_separate(input_prm, rng):
+def sim_pals_separate(input_prm):
     """
     Simulate the coincidence events from input parameters,
     return events separately for each component.
@@ -157,7 +159,7 @@ def sim_pals_separate(input_prm, rng):
 
     # background events calculations
     num_counts = int(num_events * bkg)
-    bkg_events = sim_bkg(num_counts, time_gate, rng)
+    bkg_events = sim_bkg(num_counts, time_gate, _rng)
 
     separate_events = {}
     # component related events calculations
@@ -165,7 +167,7 @@ def sim_pals_separate(input_prm, rng):
         lifetime, component_intensity = comp
         num_counts = int(num_events * component_intensity)
         comp_events = sim_coinc(num_counts, lifetime, sigma_start,
-                                sigma_stop, offset, rng)
+                                sigma_stop, offset, _rng)
 
 
         separate_events[f"component {idx}"] = comp_events
@@ -175,7 +177,7 @@ def sim_pals_separate(input_prm, rng):
 
     return separate_events
 
-def sim_pals(input_prm, rng):
+def sim_pals(input_prm):
     """
     Simulate the coincidence events from input parameters.
 
@@ -214,14 +216,14 @@ def sim_pals(input_prm, rng):
 
     # background events calculations
     num_counts = int(num_events * bkg)
-    bkg_events = sim_bkg(num_counts, time_gate, rng)
+    bkg_events = sim_bkg(num_counts, time_gate, _rng)
 
     # component related events calculations
     for idx, comp in enumerate(components):
         lifetime, component_intensity = comp
         num_counts = int(num_events * component_intensity)
         comp_events = sim_coinc(num_counts, lifetime, sigma_start,
-                                sigma_stop, offset, rng)
+                                sigma_stop, offset, _rng)
 
         if idx == 0:
             coinc_events = comp_events
@@ -446,24 +448,22 @@ def random_input_prm():
     for simulation.
     '''
 
-    rng = np.random.default_rng()
-
-    num_events = int(rng.uniform(200_000, 1_100_000))
+    num_events = int(_rng.uniform(200_000, 1_100_000))
 
     bkg = (1_000_000*0.005)/num_events
     remaining = 1-bkg
 
     lifetimes = [
-        245+rng.uniform(low=-50,high=50),
-        400+rng.uniform(low=-80,high=80),
-        1500+rng.uniform(low=-150,high=150)
+        245+_rng.uniform(low=-50,high=50),
+        400+_rng.uniform(low=-80,high=80),
+        1500+_rng.uniform(low=-300,high=300)
     ]
 
     
     intensities = [0]*3
-    intensities[-1] = rng.uniform(0.001,0.04)*remaining
+    intensities[-1] = _rng.uniform(0.001,0.04)*remaining
     remaining -= intensities[-1]
-    intensities[0] = rng.uniform(0.70, 0.85)*remaining
+    intensities[0] = _rng.uniform(0.70, 0.85)*remaining
     intensities[1] = remaining-intensities[0]
 
     components = list(zip(lifetimes,intensities))
@@ -542,8 +542,8 @@ def main():
     print("Starting to write simulations...")
     start = time.time()
     write_many_simulations(
-        sims_to_write=100,
-        folder_name="simdata_more_random2",
+        sims_to_write=2000,
+        folder_name="simdata_more_random3",
         random_input=True
     )
     stop = time.time()
