@@ -10,10 +10,10 @@ import pandas as pd
 import json
 import os
 
-_rng = np.random_default_rng()
+_rng = np.random.default_rng()
 
 
-def detector_response(event_times, sigma):
+def detector_response(event_times, sigma, rng=None):
     """
     Broaden detection time by detector's time response.
 
@@ -32,11 +32,15 @@ def detector_response(event_times, sigma):
     None.
 
     """
+
+    if rng is None:
+        rng = _rng
+
     size = np.size(event_times)
-    event_times += _rng.normal(0, sigma, size)
+    event_times += rng.normal(0, sigma, size)
 
 
-def sim_bkg(num_counts, time_gate):
+def sim_bkg(num_counts, time_gate, rng=None):
     """
     Simulate the randomly distributed background, aka random false coincidence
 
@@ -53,12 +57,16 @@ def sim_bkg(num_counts, time_gate):
         Generated array of background events.
 
     """
-    bkg_events = _rng.uniform(0, time_gate, num_counts)
+
+    if rng is None:
+        rng = _rng
+
+    bkg_events = rng.uniform(0, time_gate, num_counts)
 
     return bkg_events
 
 
-def sim_coinc(num_counts, lifetime, sigma_start, sigma_stop, offset):
+def sim_coinc(num_counts, lifetime, sigma_start, sigma_stop, offset, rng=None):
     """
     Simulate the coincidence events for a given positron component.
 
@@ -81,13 +89,17 @@ def sim_coinc(num_counts, lifetime, sigma_start, sigma_stop, offset):
         Generated array of coincidence events.
 
     """
+
+    if rng is None:
+        rng = _rng
+
     starts = np.zeros(num_counts)
     # Broaden detection time by detector's time response
-    detector_response(starts, sigma_start, _rng)
+    detector_response(starts, sigma_start, rng)
 
-    stops = _rng.exponential(lifetime, num_counts)
+    stops = rng.exponential(lifetime, num_counts)
     # # Broaden detection time by detector's time response
-    detector_response(stops, sigma_stop, _rng)
+    detector_response(stops, sigma_stop, rng)
     events = stops - starts + offset
 
     return events
@@ -118,7 +130,7 @@ def do_histogram(events, time_gate, bin_size):
     return hist, bins[:-1]
 
 
-def sim_pals_separate(input_prm):
+def sim_pals_separate(input_prm, rng=None):
     """
     Simulate the coincidence events from input parameters,
     return events separately for each component.
@@ -148,6 +160,10 @@ def sim_pals_separate(input_prm):
         The background radiation has the key "background".
 
     """
+
+    if rng is None:
+        rng = _rng
+
     num_events = input_prm["num_events"]
     bkg = input_prm["bkg"]
     components = input_prm["components"]
@@ -159,7 +175,7 @@ def sim_pals_separate(input_prm):
 
     # background events calculations
     num_counts = int(num_events * bkg)
-    bkg_events = sim_bkg(num_counts, time_gate, _rng)
+    bkg_events = sim_bkg(num_counts, time_gate, rng)
 
     separate_events = {}
     # component related events calculations
@@ -167,7 +183,7 @@ def sim_pals_separate(input_prm):
         lifetime, component_intensity = comp
         num_counts = int(num_events * component_intensity)
         comp_events = sim_coinc(num_counts, lifetime, sigma_start,
-                                sigma_stop, offset, _rng)
+                                sigma_stop, offset, rng)
 
 
         separate_events[f"component {idx}"] = comp_events
@@ -177,7 +193,7 @@ def sim_pals_separate(input_prm):
 
     return separate_events
 
-def sim_pals(input_prm):
+def sim_pals(input_prm, rng=None):
     """
     Simulate the coincidence events from input parameters.
 
@@ -204,6 +220,10 @@ def sim_pals(input_prm):
         Histogram of the generated and sorted events, in counts.
 
     """
+
+    if rng is None:
+        rng = _rng
+
     num_events = input_prm["num_events"]
     bkg = input_prm["bkg"]
     components = input_prm["components"]
@@ -216,14 +236,14 @@ def sim_pals(input_prm):
 
     # background events calculations
     num_counts = int(num_events * bkg)
-    bkg_events = sim_bkg(num_counts, time_gate, _rng)
+    bkg_events = sim_bkg(num_counts, time_gate, rng)
 
     # component related events calculations
     for idx, comp in enumerate(components):
         lifetime, component_intensity = comp
         num_counts = int(num_events * component_intensity)
         comp_events = sim_coinc(num_counts, lifetime, sigma_start,
-                                sigma_stop, offset, _rng)
+                                sigma_stop, offset, rng)
 
         if idx == 0:
             coinc_events = comp_events
@@ -298,7 +318,8 @@ def write_simulation_data(
     input_prm:dict,
     folder_name:str=None,
     file_name_beginning:str=None,
-    file_index:int=None
+    file_index:int=None,
+    rng=None
 ) -> int:
     '''
     Write simulation data to a file.
@@ -337,6 +358,9 @@ def write_simulation_data(
         
     '''
 
+    if rng is None:
+        rng = _rng
+
     # determine the folder to write into,
     # create it if need be
 
@@ -367,7 +391,6 @@ def write_simulation_data(
 
     # generate simulation data, set in
     # dataframe
-    rng = np.random.default_rng()
     time_ps, counts = sim_pals(input_prm, rng)
     pd_data = {"time_ps":time_ps, "counts":counts}
     df = pd.DataFrame(data=pd_data, dtype=np.float64)
@@ -399,9 +422,11 @@ def write_simulation_data(
         raise e
 
 
-def plot_sim_data(input_prm=None):
+def plot_sim_data(input_prm=None, rng=None):
     import matplotlib.pyplot as plt
 
+    if rng is None:
+        rng = _rng
 
     if input_prm is None:
         input_prm = {"num_events": 1_000_000,
@@ -412,8 +437,6 @@ def plot_sim_data(input_prm=None):
                     "sigma_start": 68,
                     "sigma_stop": 68,
                     "offset": 2000}
-
-    rng = np.random.default_rng() # Seed to be changed for repeated simulation
 
     # gets events separately so can also look at 
     # the separate components in addition to
@@ -442,28 +465,31 @@ def plot_sim_data(input_prm=None):
     plt.yscale("log")
     plt.show()
 
-def random_input_prm():
+def random_input_prm(rng=None):
     '''
     Somewhat randomised input parameters
     for simulation.
     '''
 
-    num_events = int(_rng.uniform(200_000, 1_100_000))
+    if rng is None:
+        rng = _rng
+
+    num_events = int(rng.uniform(200_000, 1_100_000))
 
     bkg = (1_000_000*0.005)/num_events
     remaining = 1-bkg
 
     lifetimes = [
-        245+_rng.uniform(low=-50,high=50),
-        400+_rng.uniform(low=-80,high=80),
-        1500+_rng.uniform(low=-300,high=300)
+        245+rng.uniform(low=-50,high=50),
+        400+rng.uniform(low=-80,high=80),
+        1500+rng.uniform(low=-300,high=300)
     ]
 
     
     intensities = [0]*3
-    intensities[-1] = _rng.uniform(0.001,0.04)*remaining
+    intensities[-1] = rng.uniform(0.001,0.04)*remaining
     remaining -= intensities[-1]
-    intensities[0] = _rng.uniform(0.70, 0.85)*remaining
+    intensities[0] = rng.uniform(0.70, 0.85)*remaining
     intensities[1] = remaining-intensities[0]
 
     components = list(zip(lifetimes,intensities))
