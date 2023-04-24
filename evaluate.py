@@ -87,8 +87,8 @@ def test_prediction(
 ):
     
     '''
-    Does various tests with the output predicted by the model
-    and the true components.
+    Simulates the spectrum with the components predicted by the model
+    and the true components, and compares the simulated spectra.
 
     Parameters
     ----------
@@ -127,6 +127,8 @@ def test_prediction(
     plt.plot(pred_bins, pred_hist, label="predicted")
     plt.plot(true_bins, true_hist, linestyle="dashed", label="true")
     plt.title("Prediction versus true spectrum, randomly chosen simulation data (validation set)")
+
+
 
 
 
@@ -218,8 +220,40 @@ def main(
     print("Mean:")
     print(separate_r2.mean())
 
-    random_index = _rng.integers(pred.shape[0])
+    # PLot histograms of the distribution of residuals
+    # ------------------------------------------------
+    residual = y-pred
 
+    n_features = residual.size(dim=1)
+
+    fig, axes = plt.subplots(
+        nrows = n_features//3 + n_features%3,
+        ncols = 3
+    )
+
+    for i in range(n_features):
+
+        component_num = i//2 + 1
+        r2 = separate_r2[i]
+
+        if i%2 == 0:
+            title = f"lifetime {component_num}\n r2 {r2:.2f}"
+        else:
+            title = f"intensity {component_num}\n r2 {r2:.2f}"
+
+        axis = axes.flatten()[i]
+        axis.hist(y[:,i], label="True")
+        axis.hist(pred[:,i], alpha=0.5, label="Predict")
+        axis.set_title(title)
+        axis.legend()
+    
+    plt.show()
+    # ================================================
+    
+
+
+    # choose random components to test
+    random_index = _rng.integers(pred.shape[0])
     one_pred = pred[random_index,:]
     one_y = y[random_index,:]
 
