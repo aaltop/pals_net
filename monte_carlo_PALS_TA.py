@@ -313,8 +313,114 @@ def write_sim_metadata(
     with open(file_path, "w", encoding="utf-8") as wf:
         json.dump(all_metadata, wf, indent=4)
 
-
 def write_simulation_data(
+    input_prm:dict,
+    folder_name:str=None,
+    file_name_beginning:str=None,
+    file_index:int=None,
+    rng=None
+) -> int:
+    '''
+    Write simulation data and metadata to a file. Writes <input_prm>
+    on the first line of the determined file, and writes simulated
+    spectrum data (time in picoseconds, counts) after this. Should be
+    then possible to read the contents by deserialising the first line
+    with json and reading the rest with np.loadtxt.
+
+    Pararameters
+    ------------
+
+    ### input_prm : dict
+        Input parameters for function sim_pals.
+
+    ### folder_name : str, default None
+        Name of the folder to write data into.
+        If not specified, defaults to "simdata"
+        in current working directory.
+
+    ### file_name_beginning : str, default None
+        Name of file to write data into. Final file
+        will be "<file_name_beginning>_<num>.pals", where
+        <num> is either <file_index> or any next available index
+        with zero padding. 
+        
+        If None, defaults to "simdata".
+
+    ### file_index : int, default None
+        The number of the file to try and write the data into. If
+        the corresponding file is already used, will try the next
+        files (following indices) until available or max index is reached.
+
+        If None, will try each index in order starting from 1.
+
+    Returns
+    -------
+
+    ### file_index : int
+        the number of the file that was written to
+        
+    '''
+
+    if rng is None:
+        rng = _rng
+
+    # determine the folder to write into,
+    # create it if need be
+
+    if folder_name is None:
+        folder_name = "simdata"
+    cwd = os.getcwd()
+    folder_path = os.path.join(cwd,folder_name)
+
+    if not (os.path.isdir(folder_path)):
+        os.mkdir(folder_path)
+
+    # automatically determine the file name (could probably use a
+    # bisect, but might not have that big an effect. Again, point
+    # is to write a lot of files at a time, and the index only needs
+    # to be determined once in this case.)
+    if file_index is None:
+        file_index = 1
+
+    if file_name_beginning is None:
+        file_name_beginning = "simdata"
+    
+    file_name = "{0}_{1:05}.pals"
+    while True:
+        final_file_name = file_name.format(file_name_beginning, file_index)
+        file_path = os.path.join(
+            folder_path, final_file_name)
+        
+        if os.path.isfile(file_path):
+            file_index += 1
+            if file_index >= 100_000:
+                raise ValueError(f"file_index too high")
+            continue
+        break
+
+    # generate simulation data
+    time_ps, counts = sim_pals(input_prm, rng)
+    data = np.stack((time_ps, counts), axis=-1)
+
+    # write simulation data and metadata
+    try:
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(input_prm, f)
+            f.write("\n")
+            np.savetxt(f, data)
+
+    # don't want incomplete data files
+    except BaseException as e:
+        # maybe should write to stderr?
+        print("\nException occured while writing data. Deleting data file.\n")
+        os.remove(file_path)
+        raise e
+    
+    # return file index so next write can more easily determine file
+    # to write to
+    return file_index
+
+def write_simulation_data_old1(
     input_prm:dict,
     folder_name:str=None,
     file_name_beginning:str=None,
@@ -372,7 +478,8 @@ def write_simulation_data(
     if not (os.path.isdir(folder_path)):
         os.mkdir(folder_path)
 
-    # automatically determine the file name
+    # automatically determine the file name (could probably use a
+    # bisect, but might not have that big an effect)
     if file_index is None:
         file_index = 1
     file_name_beginning = "simdata"
@@ -395,6 +502,7 @@ def write_simulation_data(
     pd_data = {"time_ps":time_ps, "counts":counts}
     df = pd.DataFrame(data=pd_data, dtype=np.float64)
 
+    # write simulation data
     with open(file_path, "w", encoding="utf-8") as f:
         df.to_csv(
             path_or_buf=f,
@@ -568,8 +676,8 @@ def main():
     print("Starting to write simulations...")
     start = time.time()
     write_many_simulations(
-        sims_to_write=2000,
-        folder_name="simdata_more_random3",
+        sims_to_write=300,
+        folder_name="simdata_test",
         random_input=True
     )
     stop = time.time()
