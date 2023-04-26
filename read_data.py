@@ -9,6 +9,9 @@ import numpy as np
 # to each function. In any case, having a more unified interface
 # structure would be good.
 
+# NOTE: Might be best to just make a PyTorch dataloader for the
+# PyTorch stuff at least.
+
 def get_data_files(
         data_folder:str,
         train_size:int,
@@ -242,9 +245,12 @@ def get_simdata(folder_path:str, file_names:list[str]):
     Returns
     -------
 
-    ### counts, components : numpy array
-        The counts of the spectra and the components (lifetimes and
-        intensities) of the spectra.
+    ### counts, components : list of numpy arrays
+        The counts of the spectra. Currently needs to be a list because
+        gets processed later, which requires the list.
+
+    ### components : numpy array
+        The components (lifetimes and intensities) of the spectra.
     '''
 
     components = [0]*len(file_names)
@@ -275,7 +281,7 @@ def get_simdata(folder_path:str, file_names:list[str]):
                 count_col = np.loadtxt(f, dtype="float64", usecols=1)
                 counts[i] = count_col
 
-        return np.array(counts), np.array(components)
+        return counts, np.array(components)
 
     finally:
         os.chdir(old_path)
@@ -358,6 +364,8 @@ def test_get_simdata():
 
     print(train_counts.shape)
     print(train_components.shape)
+    print(train_counts.max())
+    print(train_components)
 
 def main():
 
