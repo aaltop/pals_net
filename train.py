@@ -12,7 +12,8 @@ from read_data import (
     read_metadata, 
     get_train_or_test,
     get_components,
-    get_data_files
+    get_data_files,
+    get_simdata
 )
 
 from pytorch_helpers import (
@@ -258,7 +259,11 @@ def fetch_and_process_input(
 
 def fetch_output(data_folder, data_files):
     '''
-    
+    Fetch output (components). For use with older type of
+    data saving, where simulation input parameters are kept in metadata
+    file. The metadata file consists of a json-formatted "dictionary",
+    with keys being the data files' names, and the values for these
+    being the input parameter dictionaries. 
 
     Returns
     -------
@@ -366,6 +371,7 @@ def model_training(
     stop = time.time()
     logging.info(f"Fitting took {stop-start} seconds")
     logging.info(f"Total epochs run: {epoch+1}")
+    logging.info(f"Final loss: {current_loss}")
 
     return losses, r2_scores, best_model_state_dict
 
@@ -439,33 +445,48 @@ def main():
     # Get inputs and outputs, process
     # --------------------------------------
 
-    print("Starting data fetch process...")
+    print("Starting data fetch and processing...")
     start = time.time()
 
-    data_folder = "simdata_more_random3"
-    train_size = 3800
-    test_size = 200
+    data_folder = "new_format_simdata"
+    train_size = 7500
+    test_size = 500
     train_files, test_files = get_data_files(
         data_folder,
         train_size,
         test_size,
-        _rng
     )
 
-    x_train = fetch_and_process_input(data_folder,train_files)
-    x_test = fetch_and_process_input(data_folder,test_files)
+    data_path = os.path.join(
+        os.getcwd(),
+        data_folder
+    )
+    x_train, y_train = get_simdata(data_path, train_files)
+    x_test, y_test = get_simdata(data_path, test_files)
 
-    y_train = fetch_output(data_folder,train_files)
-    y_test = fetch_output(data_folder,test_files)
+
+    take_average_over = 5
+    start_index = 0
+    num_of_channels = len(x_train[0])
+    logging.info(f"averaging input over {take_average_over} bins")
+    process_input(x_train, num_of_channels, take_average_over=take_average_over, start_index=start_index)
+    process_input(x_test, num_of_channels, take_average_over=take_average_over, start_index=start_index)
+
+    x_train = convert_to_tensor(x_train)
+    x_test = convert_to_tensor(x_test)
 
     # normalise outputs based on train output (could be problematic
-    # if values in y_test are larger than in y_train?)
+    # if values in y_test are larger than in y_train, as the idea
+    # would be to normalise to one?)
+    y_train = convert_to_tensor(y_train)
+    y_test = convert_to_tensor(y_test)
+
     y_train_col_max = y_train.amax(dim=0)
     y_train /= y_train_col_max
     y_test /= y_train_col_max
 
     end = time.time()
-    print("Data fetch took", end-start, " seconds.")
+    print("Data fetch and processing took", end-start, " seconds.")
     # ======================================
 
     # Define the model
@@ -507,16 +528,13 @@ def main():
         model,
         epochs,
         tol
-
-
     )
-
-    logging.info(f"Training took {end-start} seconds")
     # ======================================
 
     # save model for easy use later
     # --------------------------------------
 
+    # TODO: would be good to add the validation set files. 
     save_model = True
     if save_model:
 
