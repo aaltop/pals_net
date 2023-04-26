@@ -3,6 +3,12 @@ import pandas as pd
 import os
 import numpy as np
 
+# TODO: might want to change this folder vs. path thing, to just
+# use the path in all cases. A lot of these are used back-to-back,
+# so it's faster to just define the data_path once and pass it
+# to each function. In any case, having a more unified interface
+# structure would be good.
+
 def get_data_files(
         data_folder:str,
         train_size:int,
@@ -218,7 +224,10 @@ def get_simdata(folder_path:str, file_names:list[str]):
     simulation, both of which should be in one file. The inputs
     (simulation input parameters) should be on the first line of the
     file as a (json deserialisable) dictionary, and the simulation
-    time and counts make up the rest of the file, in two columns.
+    time and counts make up the rest of the file, in two columns. The
+    input parameter dictionary should contain a "components" key,
+    which points to a list of lists (or similar), where every sublist 
+    contains a [lifetime, intensity] pair.
 
     Parameters
     ----------
