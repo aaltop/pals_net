@@ -5,9 +5,18 @@ import matplotlib.pyplot as plt
 import os
 
 from monte_carlo_PALS_TA import sim_pals
-import train
+from train import process_input
+
+from read_data import (
+    get_simdata,
+    get_data_files
+)
+
+
+
 from pytorch_helpers import r2_score
 from pytorchMLP import MLP
+from pytorch_helpers import convert_to_tensor
 
 _rng = np.random.default_rng()
 
@@ -129,11 +138,10 @@ def test_prediction(
     plt.title("Prediction versus true spectrum, randomly chosen simulation data (validation set)")
 
 
-
+    
 
 
     # plt.plot(naive_bins, naive_hist, label="naive")
-    # plt.plot(pred_bins, pred_hist-sim_y_hist, label="residual")
 
     # plt.plot(np.sort(pred_hist)/pred_hist.max(), label="predicted CDF")
     # plt.plot(np.sort(sim_y_hist)/sim_y_hist.max(), linestyle="dashed", label="true CDF")
@@ -143,6 +151,16 @@ def test_prediction(
     plt.ylabel("counts")
     plt.yscale("log")
     plt.show()
+
+
+    plt.plot(pred_bins, pred_hist-true_hist, label="residual")
+
+    plt.legend()
+    plt.xlabel("time")
+    plt.ylabel("counts")
+    # plt.yscale("log")
+    plt.show()
+
 
 
 
@@ -169,19 +187,21 @@ def main(
         # get simulated data, process
     # --------------------------
 
-    folder = "simdata_more_random3"
+    folder = "simdata_test"
     folder_path = os.path.join(os.getcwd(), folder)
-    data_files = os.listdir(folder_path)
-    data_files.remove("metadata.txt")
 
-    validation_files = data_files[3805:]
+    data_files, _ = get_data_files(folder, 1000, 0)
 
-    x = train.fetch_and_process_input(
-        folder,
-        validation_files
-    )
+    validation_files = data_files[500:]
 
-    y = train.fetch_output(folder, validation_files)
+    x,y = get_simdata(folder_path,validation_files)
+
+    take_average_over = 5
+    start_index = 0
+    num_of_channels = len(x[0])
+    process_input(x, num_of_channels, take_average_over=take_average_over, start_index=start_index)
+    x = convert_to_tensor(x)
+    y = convert_to_tensor(y)
 
     # ================================================
 
@@ -224,6 +244,10 @@ def main(
     # ------------------------------------------------
     residual = y-pred
 
+    print(y.mean(dim=0, keepdim=True))
+
+    residual_normalised = residual/y.mean(dim=0, keepdim=True)
+
     n_features = residual.size(dim=1)
 
     fig, axes = plt.subplots(
@@ -242,8 +266,9 @@ def main(
             title = f"intensity {component_num}\n r2 {r2:.2f}"
 
         axis = axes.flatten()[i]
-        axis.hist(y[:,i], label="True")
-        axis.hist(pred[:,i], alpha=0.5, label="Predict")
+        # axis.hist(y[:,i], label="True")
+        # axis.hist(pred[:,i], alpha=0.5, label="Predict")
+        axis.hist(residual_normalised[:,i], label="Residual")
         axis.set_title(title)
         axis.legend()
     
