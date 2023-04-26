@@ -371,6 +371,7 @@ def model_training(
     stop = time.time()
     logging.info(f"Fitting took {stop-start} seconds")
     logging.info(f"Total epochs run: {epoch+1}")
+    logging.info(f"Final loss: {current_loss}")
 
     return losses, r2_scores, best_model_state_dict
 
@@ -447,8 +448,8 @@ def main():
     print("Starting data fetch and processing...")
     start = time.time()
 
-    data_folder = "simdata_test"
-    train_size = 500
+    data_folder = "new_format_simdata"
+    train_size = 7500
     test_size = 500
     train_files, test_files = get_data_files(
         data_folder,
@@ -519,7 +520,7 @@ def main():
     # --------------------------------------
     print("Beginning training...")
 
-    epochs = 500
+    epochs = 6000
     tol = 1e-8
     losses, r2_scores, best_model_state_dict = model_training(
         (x_train, y_train),
@@ -533,7 +534,8 @@ def main():
     # save model for easy use later
     # --------------------------------------
 
-    save_model = False
+    # TODO: would be good to add the validation set files. 
+    save_model = True
     if save_model:
 
         whole_state_dict = {

@@ -187,12 +187,12 @@ def main(
         # get simulated data, process
     # --------------------------
 
-    folder = "simdata_test"
+    folder = "new_format_simdata"
     folder_path = os.path.join(os.getcwd(), folder)
 
-    data_files, _ = get_data_files(folder, 1000, 0)
+    data_files, _ = get_data_files(folder, 8000, 0)
 
-    validation_files = data_files[500:]
+    validation_files = data_files[7500:]
 
     x,y = get_simdata(folder_path,validation_files)
 

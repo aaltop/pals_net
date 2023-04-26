@@ -585,6 +585,8 @@ def random_input_prm(rng=None):
     num_events = int(rng.uniform(200_000, 1_100_000))
 
     bkg = (1_000_000*0.005)/num_events
+
+    # remaining "intensity", how much of the num_events are still unspecified
     remaining = 1-bkg
 
     lifetimes = [
@@ -606,7 +608,7 @@ def random_input_prm(rng=None):
                  "bkg": bkg,
                  "components": components,
                  "bin_size": 25,
-                 "time_gate": 15_000,
+                 "time_gate": 10_000,
                  "sigma_start": 68,
                  "sigma_stop": 68,
                  "offset": 1000}
@@ -673,11 +675,13 @@ def write_many_simulations(sims_to_write, folder_name=None, random_input=False):
 def main():
     import time
 
+    # see the function random_input_prm for changing the simulation
+    # parameters
     print("Starting to write simulations...")
     start = time.time()
     write_many_simulations(
-        sims_to_write=300,
-        folder_name="simdata_test",
+        sims_to_write=4000,
+        folder_name="new_format_simdata",
         random_input=True
     )
     stop = time.time()

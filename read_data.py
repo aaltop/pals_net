@@ -362,9 +362,8 @@ def test_get_simdata():
 
     print(f"Took {time.time()-start} seconds.")
 
-    print(train_counts.shape)
     print(train_components.shape)
-    print(train_counts.max())
+    print(len(train_counts))
     print(train_components)
 
 def main():
