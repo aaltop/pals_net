@@ -4,7 +4,7 @@ from scipy.stats import kstest
 import matplotlib.pyplot as plt
 import os
 
-from monte_carlo_PALS_TA import sim_pals
+from simulate_spectra import sim_pals
 from train import process_input
 
 from read_data import (
