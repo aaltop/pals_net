@@ -14,8 +14,8 @@ import numpy as np
 
 def get_data_files(
         data_folder:str,
-        train_size:int,
-        test_size:int,
+        train_size:int=None,
+        test_size:int=None,
         rng:np.random.Generator=None,
         permute_data=False
     ):
@@ -24,17 +24,30 @@ def get_data_files(
     Gets the data files (names of data files) in <data_folder>,
     optionally does permutation to shuffle train and test.
 
-    
+    Parameters
+    ----------
+
+
+    ### train_size, test_size : int, default None
+        Number of files to use as train and test data source. If <test_size>
+        is None, the <train_size> files will be returned. If both are None,
+        all the files are returned. Cannot have just <train_size> be None,
+        mainly to keep the interface somewhat sensible.
+
+    ### permute_data : Boolean, default False
+        Whether to permute the data files. If both <train_size> and
+        <test_size> are None, no permutation is performed
+        as all files are returned regardless.
+
 
     Returns
     -------
 
     ### train_files, test_files : list of strings
-        Names of the train and test files in <data_folder>.
+        Names of the train and test files in <data_folder>. If
+        <test_files> or both are None, returns <test_files> as empty list.
     '''
 
-    if permute_data and rng is None:
-        rng = np.random.default_rng()
 
     folder_path = os.path.join(os.getcwd(), data_folder)
     data_files = os.listdir(folder_path)
@@ -43,16 +56,25 @@ def get_data_files(
         if to_remove in data_files:
             data_files.remove(to_remove)
 
-
+    if train_size is None:
+        if not (test_size is None):
+            # just to keep some sense in the use
+            raise ValueError("Cannot have <train_size> but not <test_size> be None")
+        
+        # no point in permutation, really.
+        return data_files, []
 
     if permute_data:
-        perm_data_files = rng.permutation(data_files)
-        train_files = perm_data_files[:train_size]
-        test_files = perm_data_files[train_size:train_size+test_size]
-    else:
-        train_files = data_files[:train_size]
-        test_files = data_files[train_size:train_size+test_size]
+        if rng is None:
+            rng = np.random.default_rng()
 
+        data_files = rng.permutation(data_files)
+
+    train_files = data_files[:train_size]
+    if test_size is None:
+        return train_files, []
+
+    test_files = data_files[train_size:train_size+test_size]
     return train_files, test_files
 
 def read_metadata(folder_path, metadata_name=None) -> dict:
@@ -345,11 +367,9 @@ def test_get_simdata():
 
     start = time.time()
 
-    data_folder = "simdata_test"
+    data_folder = "sim_validation"
     train_files, test_files = get_data_files(
         data_folder,
-        train_size=500,
-        test_size=500,
         )
     
     folder_path = os.path.join(
@@ -358,7 +378,7 @@ def test_get_simdata():
     )
 
     train_counts, train_components = get_simdata(folder_path, train_files)
-    test_counts, test_components = get_simdata(folder_path, test_files)
+    # test_counts, test_components = get_simdata(folder_path, test_files)
 
     print(f"Took {time.time()-start} seconds.")
 

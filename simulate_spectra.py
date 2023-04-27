@@ -2,7 +2,29 @@
 """
 Created on Tue Jan 31 11:00:49 2023.
 
-@author: René Bes
+@author: René Bes, Topi Aaltonen
+
+# Instructions:
+
+It should be possible to write simulation data to file by simply
+running this file. Depending on the current state of the file,
+this will create a new folder in the current working directory,
+and write a number of simulation data files in the folder. It is still
+recommended to check the file out before doing this.
+
+When wanting to specify exactly how much data to generate, see the main
+function in the file. There, change the argument `sims_to_write` of
+the `write_many_simulations` function to the preferred number of
+simulations to write. In order to change the random simulation parameters,
+see the function `random_input_prm`, and change the values there
+to the preferred values.
+
+If instead set input parameters are wanted, pass an input parameter
+like the one commented in the `main` function to the 
+`write_many_simulations` function (argument <input_prm>)
+
+It's recommended to create a separate set of simulated data for training
+and tests data and another for validation data.
 """
 
 import numpy as np
@@ -617,10 +639,10 @@ def random_input_prm(rng=None):
     return input_prm
 
 
-def write_many_simulations(sims_to_write, folder_name=None, random_input=False):
+def write_many_simulations(sims_to_write, folder_name=None, input_prm=None):
     '''
     Write multiple simulations to file; see function
-    write_simulation_data for more information.
+    `write_simulation_data()` for more information.
 
     Parameters
     ----------
@@ -630,18 +652,11 @@ def write_many_simulations(sims_to_write, folder_name=None, random_input=False):
 
     ### folder_name : string
         Folder to write simulations into. See function
-        "write_simulation_data" for more information.
+        `write_simulation_data()` for more information.
     
-    ### random_input : Boolean
-        Whether to randomise input parameters.
+    ### input_prm : simulation input parameters, default None
+        The parameters used for the simulation, for example
 
-    Returns
-    -------
-
-        None
-    '''
-
-    if not random_input:
         input_prm = {"num_events": 1_000_000,
                     "bkg": 0.05,
                     "components": [(415, .10), (232, .50), (256, .30), (1200, .05)],
@@ -650,6 +665,17 @@ def write_many_simulations(sims_to_write, folder_name=None, random_input=False):
                     "sigma_start": 68,
                     "sigma_stop": 68,
                     "offset": 2000}
+
+        If <input_prm> is None, defaults to using the function 
+        `random_input_prm()` to generate randomised input parameters.
+
+    Returns
+    -------
+
+        None
+    '''
+
+    random_input = (input_prm is None)
 
     file_index = None
 
@@ -675,14 +701,25 @@ def write_many_simulations(sims_to_write, folder_name=None, random_input=False):
 def main():
     import time
 
+    #example input, change input_prm to this to use these as the parameters
+    input_prm = {"num_events": 1_000_000,
+                "bkg": 0.05,
+                "components": [(415, .10), (232, .50), (256, .30), (1200, .05)],
+                "bin_size": 25,
+                "time_gate": 15_000,
+                "sigma_start": 68,
+                "sigma_stop": 68,
+                "offset": 2000}
+
+
     # see the function random_input_prm for changing the simulation
     # parameters
     print("Starting to write simulations...")
     start = time.time()
     write_many_simulations(
-        sims_to_write=4000,
-        folder_name="new_format_simdata",
-        random_input=True
+        sims_to_write=200,
+        folder_name="sim_validation",
+        input_prm=None
     )
     stop = time.time()
     print(f"Simulation writing took {stop-start} seconds.")

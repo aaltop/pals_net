@@ -1,3 +1,28 @@
+'''
+
+# Instructions:
+
+Everything that's needed to do here (to begin with) is contained in the arguments
+of the `main()` function at the bottom. Main things to possibly
+change in the function:
+
+- <data_folder>: The folder where the data simulated in 
+"simulate_spectra.py" was saved.
+
+- <train_size>, <test_size>: the preferred sizes of training and test
+data. The sum of these should be at most equal to the number of data
+files in <data_folder>, with both values greater than zero.
+
+After these are verified to be okay, it should be okay to run the
+file to train the model.
+
+The first time the training is run (during a session), it might take
+a while depending on the amount of data specified. As an example,
+processing of of 7500 train data and 500 test data took 70 seconds
+the first time, but second time took around 4 seconds.
+'''
+
+
 import torch
 import numpy as np
 import logging
@@ -333,7 +358,6 @@ def model_training(
 
     losses = [0]*epochs
     logging.info(f"\nEpochs: {epochs}")
-    tolerance = 1e-8
     logging.info(f"tolerance: {tolerance}")
     previous_loss = np.inf
     previous_test_r2 = -np.inf
@@ -375,8 +399,6 @@ def model_training(
 
     return losses, r2_scores, best_model_state_dict
 
-# TODO: Add all the other stuff from the earlier file
-
 def plot_training_results(losses, r2_scores):
 
     fig, ax = plt.subplots(2,1)
@@ -413,9 +435,54 @@ def plot_training_results(losses, r2_scores):
 
 
 
-def main():
+def main(
+        data_folder:str,
+        train_size:int,
+        test_size:int,
+        epochs:int,
+        tol:float,
+        save_model=None
+
+):
     '''
     Performs the training process of a model.
+
+    Parameters
+    ----------
+
+    ### data_folder : string
+        The name of the folder where the data resides.
+    
+    ### train_size, test_size : int
+        Number of the training samples and test samples to use,
+        respectively. Obviously depends on the number of simulated
+        spectra - how many data files there are.
+
+    ### epochs : int
+        The number of epochs to at most train the model for. The true
+        number of epochs run depends on <tol>, but is limited to
+        <epochs> epochs.
+
+    ### tol : float
+        The minimum relative change in the loss to tolerate before
+        ending the training. Probably best left quite small, and prefer
+        setting a good <epochs> count: there's (presumably) no harm
+        in running the training for "too" long, especially as the
+        best model (based on test set score) is chosen anyway.
+
+
+    ### save_model : Boolean, default None
+        Determines whether the trained model will be saved for later
+        use. 
+        
+        If True or None (default), the model state dictionary 
+        along with some other parameters will be saved to
+        a folder "saved_models" using `torch.save()`, with a file name 
+        determined by the start time of the training. The model can be
+        loaded from there using `torch.load()`: see the module
+        "evaluate.py" for how this happens exactly.
+
+        If False, will not save the model.
     '''
 
     # setup logger
@@ -448,9 +515,10 @@ def main():
     print("Starting data fetch and processing...")
     start = time.time()
 
-    data_folder = "new_format_simdata"
-    train_size = 7500
-    test_size = 500
+    # data_folder = "new_format_simdata"
+    # train_size = 7500
+    # test_size = 500
+
     train_files, test_files = get_data_files(
         data_folder,
         train_size,
@@ -464,7 +532,10 @@ def main():
     x_train, y_train = get_simdata(data_path, train_files)
     x_test, y_test = get_simdata(data_path, test_files)
 
+    print("Fetched input and output...")
 
+    # Averaging over the input data. Could make this more easily
+    # modifiable as well.
     take_average_over = 5
     start_index = 0
     num_of_channels = len(x_train[0])
@@ -475,15 +546,19 @@ def main():
     x_train = convert_to_tensor(x_train)
     x_test = convert_to_tensor(x_test)
 
-    # normalise outputs based on train output (could be problematic
-    # if values in y_test are larger than in y_train, as the idea
-    # would be to normalise to one?)
+    print("Processed input...")
+
     y_train = convert_to_tensor(y_train)
     y_test = convert_to_tensor(y_test)
 
+    # normalise outputs based on train output (could be problematic
+    # if values in y_test are larger than in y_train, as the idea
+    # would be to normalise to one?)
     y_train_col_max = y_train.amax(dim=0)
     y_train /= y_train_col_max
     y_test /= y_train_col_max
+
+    print("Processed output.\n")
 
     end = time.time()
     print("Data fetch and processing took", end-start, " seconds.")
@@ -520,8 +595,6 @@ def main():
     # --------------------------------------
     print("Beginning training...")
 
-    epochs = 6000
-    tol = 1e-8
     losses, r2_scores, best_model_state_dict = model_training(
         (x_train, y_train),
         (x_test, y_test),
@@ -534,8 +607,9 @@ def main():
     # save model for easy use later
     # --------------------------------------
 
-    # TODO: would be good to add the validation set files. 
-    save_model = True
+    if save_model is None:
+        save_model = True
+
     if save_model:
 
         whole_state_dict = {
@@ -551,4 +625,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(
+        data_folder="new_format_simdata",
+        train_size=7500,
+        test_size=500,
+        epochs=100,
+        tol=1e-8,
+        save_model=False
+    )

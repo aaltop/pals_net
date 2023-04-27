@@ -1,3 +1,16 @@
+'''
+
+# Instructions:
+
+Everything that's needed to do here (to begin with) is contained in the arguments
+of the `main()` function at the bottom. Main things to possibly
+change in the function:
+
+- <data_folder>: The folder to fetch evaluation data from.
+'''
+
+
+
 import torch
 import numpy as np
 from scipy.stats import kstest
@@ -165,8 +178,11 @@ def test_prediction(
 
 
 def main(
+        data_folder,
+        data_size=None,
         model_folder=None,
-        model_file=None
+        model_file=None,
+
 ):
     '''
     Does the evaluation.
@@ -174,6 +190,13 @@ def main(
 
     Parameters
     ----------
+
+    ### data_folder : str
+        Folder to fetch the evaluation data from.
+
+    ### data_size : int, default None
+        The number of simulation data to use for evaluation. If None,
+        uses all data.
 
     ### model_folder : str, default None
         The name of the folder where the models are saved. Defaults
@@ -187,15 +210,20 @@ def main(
         # get simulated data, process
     # --------------------------
 
-    folder = "new_format_simdata"
-    folder_path = os.path.join(os.getcwd(), folder)
+    folder_path = os.path.join(os.getcwd(), data_folder)
 
-    data_files, _ = get_data_files(folder, 8000, 0)
-
-    validation_files = data_files[7500:]
+    # should be fine to specify more than the total amount of files
+    # in the folder, but best to keep it to a logical amount
+    validation_files, _ = get_data_files(
+        data_folder=data_folder, 
+        train_size=data_size
+    )
 
     x,y = get_simdata(folder_path,validation_files)
 
+    # Should obviously be the same as when training. Could add a more
+    # sensible way to do this, a way to use the same processing as
+    # when training.
     take_average_over = 5
     start_index = 0
     num_of_channels = len(x[0])
@@ -297,4 +325,6 @@ def main(
 
 if __name__ == "__main__":
 
-    main()
+    main(
+        data_folder="sim_validation"
+    )
