@@ -14,7 +14,7 @@ def convert_to_tensor(val):
 def r2_score(pred,y):
     '''
     R-squared scoring for pytorch tensors. Excepts <y> and <pred>
-    to be column-oriented: the sums as well as the mean of <y> will be 
+    to be column-oriented if 2D: the sums as well as the mean of <y> will be 
     taken column-wise.
     '''
 
