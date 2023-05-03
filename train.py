@@ -187,7 +187,7 @@ def process_input(data, num_of_channels=None, take_average_over=None, start_inde
     Cut off counts in <data> such that only data from the
     <start_index> onwards up to <num_of_channels> beyond the <start_index> 
     is considered, and takes non-rolling means of <take_average_over> values 
-    of the result.
+    of the result. Finally, normalises the resulting averaged data.
 
     Parameters
     ----------
