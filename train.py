@@ -356,6 +356,10 @@ def model_training(
     # Do optimisation
     #-------------------------------------
 
+    #TODO: Some variable learning rate could be added. Best option
+    # is likely the pytorch LR schedulers, particularly
+    # ReduceLROnPlateu. 
+
     losses = [0]*epochs
     logging.info(f"\nEpochs: {epochs}")
     logging.info(f"tolerance: {tolerance}")
@@ -441,6 +445,7 @@ def main(
         test_size:int,
         epochs:int,
         tol:float,
+        learning_rate=None,
         save_model=None
 
 ):
@@ -470,6 +475,8 @@ def main(
         in running the training for "too" long, especially as the
         best model (based on test set score) is chosen anyway.
 
+    ### learning_rate : float
+        The learning rate used by the optimiser.
 
     ### save_model : Boolean, default None
         Determines whether the trained model will be saved for later
@@ -581,9 +588,13 @@ def main(
 
     mlp = MLP(layer_sizes)
 
+    if learning_rate is None:
+        learning_rate = 0.005
+
+
     model = Model(
         mlp,
-        torch.optim.Adam(mlp.parameters(), lr=0.0005),
+        torch.optim.Adam(mlp.parameters(), lr=learning_rate),
         torch.nn.MSELoss(),
     )
 
@@ -626,10 +637,10 @@ def main(
 
 if __name__ == "__main__":
     main(
-        data_folder="new_format_simdata",
-        train_size=7500,
-        test_size=500,
-        epochs=100,
+        data_folder="simdata_train01",
+        train_size=3800,
+        test_size=200,
+        epochs=500,
         tol=1e-8,
         save_model=False
     )
