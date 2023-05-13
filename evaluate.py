@@ -137,12 +137,15 @@ def test_prediction(
     naive_bins, naive_hist = sim_pals(naive_input, _rng)
 
 
-    print("\nTwo-sample kstest, sim data")
-    print(kstest(true_hist, pred_hist))
+    print("\nTwo-sample kstest, model prediction against sim data")
+    pred_kstest = kstest(true_hist, pred_hist)
+    print(pred_kstest)
     print(np.abs(pred_hist-true_hist).max())
+    print(pred_kstest.pvalue)
 
     print("\nTwo-sample kstest, naive prediction against sim data")
-    print(kstest(true_hist, naive_hist))
+    naive_kstest = kstest(true_hist, naive_hist)
+    print(naive_kstest)
     print(np.abs(naive_hist-true_hist).max())
 
 
@@ -160,18 +163,20 @@ def test_prediction(
     # plt.plot(np.sort(sim_y_hist)/sim_y_hist.max(), linestyle="dashed", label="true CDF")
 
     plt.legend()
-    plt.xlabel("time")
+    plt.xlabel("time (ps)")
     plt.ylabel("counts")
     plt.yscale("log")
+    plt.title(f"Predicted vs. true spectrum\n KS test p-value {pred_kstest.pvalue:.4f}")
     plt.show()
 
 
     plt.plot(pred_bins, pred_hist-true_hist, label="residual")
 
     plt.legend()
-    plt.xlabel("time")
+    plt.xlabel("time (ps)")
     plt.ylabel("counts")
     # plt.yscale("log")
+    plt.title(f"Predicted vs. true spectrum residual\n KS test p-value {pred_kstest.pvalue:.4f}")
     plt.show()
 
 
@@ -272,8 +277,6 @@ def main(
     # ------------------------------------------------
     residual = y-pred
 
-    print(y.mean(dim=0, keepdim=True))
-
     residual_normalised = residual/y.mean(dim=0, keepdim=True)
 
     n_features = residual.size(dim=1)
@@ -296,10 +299,11 @@ def main(
         axis = axes.flatten()[i]
         # axis.hist(y[:,i], label="True")
         # axis.hist(pred[:,i], alpha=0.5, label="Predict")
-        axis.hist(residual_normalised[:,i], label="Residual")
+        axis.hist(residual_normalised[:,i], label="Normalized residual")
         axis.set_title(title)
         axis.legend()
     
+    plt.suptitle("Histogram of predicted and true (normalized) component residuals")
     plt.show()
     # ================================================
     
@@ -326,5 +330,6 @@ def main(
 if __name__ == "__main__":
 
     main(
-        data_folder="sim_validation"
+        data_folder="simdata_evaluate01",
+        model_file="model20230503164256.pt"
     )
