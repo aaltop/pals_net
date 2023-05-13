@@ -196,12 +196,11 @@ def process_input(data, num_of_channels=None, take_average_over=None, start_inde
 
     ### num_of_channels : int
         How many channels to take beyond the max channel,
-        as in [max_chan:max_chan+num_of_channels]. Needs to be
+        as in [max_chan:max_chan+num_of_channels]. Preferably
         divisible by <take_average_over>. Default is 100.
 
     ### take_average_over : int
-        how many channels to average over. <num_of_channels> needs
-        to be divisible by this. Default is 5.
+        how many channels to average over. Default is 5.
 
     ### start_index : int
         The first index to include in the end result. If None,
@@ -347,7 +346,11 @@ def model_training(
     x_train, y_train = train_data
     x_test, y_test = test_data
 
-    batch_size =y_train.shape[0]//10
+    # excepts a data set greater than 20. A larger batch size
+    # can speed up training by making each epoch take less time,
+    # but equally a smaller batch size might reach a good score
+    # earlier in epochs compared to a larger batch size.
+    batch_size = y_train.shape[0]//20
     logging.info(f"\nBatch size: {batch_size}")
 
     # mainly for checking initial state
@@ -475,8 +478,9 @@ def main(
         in running the training for "too" long, especially as the
         best model (based on test set score) is chosen anyway.
 
-    ### learning_rate : float
-        The learning rate used by the optimiser.
+    ### learning_rate : float, default None
+        The learning rate used by the optimiser. If None, defaults to
+        0.005.
 
     ### save_model : Boolean, default None
         Determines whether the trained model will be saved for later
@@ -522,10 +526,7 @@ def main(
     print("Starting data fetch and processing...")
     start = time.time()
 
-    # data_folder = "new_format_simdata"
-    # train_size = 7500
-    # test_size = 500
-
+    logging.info(f"Using data from folder {data_folder}")
     train_files, test_files = get_data_files(
         data_folder,
         train_size,
@@ -558,6 +559,11 @@ def main(
     y_train = convert_to_tensor(y_train)
     y_test = convert_to_tensor(y_test)
 
+    # for training on just on component
+    # comp = 4
+    # y_train = y_train[:,comp].reshape((-1,1))
+    # y_test = y_test[:,comp].reshape((-1,1))
+
     # normalise outputs based on train output (could be problematic
     # if values in y_test are larger than in y_train, as the idea
     # would be to normalise to one?)
@@ -581,6 +587,7 @@ def main(
     layer_sizes.append(input_size)
     # decrease hidden layer size each layer 
     hidden_layer_sizes = [150-i*15 for i in range(10)]
+    # hidden_layer_sizes = [150]*10
     layer_sizes.extend(hidden_layer_sizes)
     layer_sizes.append(output_size)
 
@@ -637,10 +644,11 @@ def main(
 
 if __name__ == "__main__":
     main(
-        data_folder="simdata_train01",
-        train_size=3800,
+        data_folder="simdata_train02",
+        train_size=1900,
         test_size=200,
-        epochs=500,
+        epochs=100,
         tol=1e-8,
+        learning_rate=0.001,
         save_model=False
     )
