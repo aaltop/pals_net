@@ -33,6 +33,8 @@ import sys
 
 import matplotlib.pyplot as plt
 
+import helpers
+
 from read_data import (
     read_metadata, 
     get_train_or_test,
@@ -354,7 +356,10 @@ def model_training(
     logging.info(f"\nBatch size: {batch_size}")
 
     # mainly for checking initial state
+    logging.info("Initial state sanity check")
+    logging.info("==========================")
     model.evaluate(x_train[:15,], y_train[:15,], batch_size)
+    logging.info("==========================")
 
     # Do optimisation
     #-------------------------------------
@@ -506,7 +511,7 @@ def main(
     if not (os.path.exists(log_folder)):
         os.mkdir(log_folder)
 
-    date_str = time.strftime("%Y%m%d%H%M%S")
+    date_str = helpers.date_time_str()
     file_name = "fit" + date_str + ".log"
     file_path = os.path.join(log_folder, file_name)
 
@@ -643,10 +648,20 @@ def main(
 
 
 if __name__ == "__main__":
+    # main(
+    #     data_folder="simdata_train02",
+    #     train_size=1900,
+    #     test_size=200,
+    #     epochs=100,
+    #     tol=1e-8,
+    #     learning_rate=0.001,
+    #     save_model=False
+    # )
+
     main(
-        data_folder="simdata_train02",
-        train_size=1900,
-        test_size=200,
+        data_folder="temp_file",
+        train_size=90,
+        test_size=10,
         epochs=100,
         tol=1e-8,
         learning_rate=0.001,
