@@ -1,7 +1,12 @@
+import os
+import contextlib
+
 import json
 import pandas as pd
-import os
 import numpy as np
+
+
+
 
 # TODO: might want to change this folder vs. path thing, to just
 # use the path in all cases. A lot of these are used back-to-back,
@@ -278,14 +283,11 @@ def get_simdata(folder_path:str, file_names:list[str]):
     components = [0]*len(file_names)
     counts = [0]*len(file_names)
 
-    # in Python 3.11, this (try-finally) could be replaced by contextlib.chdir,
-    # and could of course be written as a context manager here as well
-    # supposedly not thread-safe
-    try:
-        # change to data folder so don't have to create the path
-        # strings for every data file
-        old_path = os.getcwd()
-        os.chdir(folder_path)
+
+    # change to data folder so don't have to create the path
+    # strings for every data file
+    # not thread-safe
+    with contextlib.chdir(folder_path):
 
         for i,file in enumerate(file_names):
             with open(file, "r", encoding="utf-8") as f:
@@ -304,9 +306,6 @@ def get_simdata(folder_path:str, file_names:list[str]):
                 counts[i] = count_col
 
         return counts, np.array(components)
-
-    finally:
-        os.chdir(old_path)
 
 
         
