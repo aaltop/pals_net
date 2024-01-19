@@ -566,17 +566,18 @@ def main(
     print("Starting data fetch and processing...")
     start = time.time()
 
-    logging.info(f"Using data from folder {data_folder}")
-    train_files, test_files = get_data_files(
-        data_folder,
-        train_size,
-        test_size,
-    )
-
     data_path = os.path.join(
         os.getcwd(),
         data_folder
     )
+
+    logging.info(f"Using data from folder {data_folder}")
+    train_files, test_files = get_data_files(
+        data_path,
+        train_size,
+        test_size,
+    )
+
     x_train, y_train = get_simdata(data_path, train_files)
     x_test, y_test = get_simdata(data_path, test_files)
 
@@ -703,25 +704,24 @@ def main(
 if __name__ == "__main__":
 
 
-    main(
-        data_folder="simdata_train02",
-        train_size=1900,
-        test_size=200,
-        epochs=100,
-        tol=1e-8,
-        learning_rate=0.001,
-        save_model=False
-    )
-
-
-
     # main(
-    #     data_folder="temp_file",
-    #     train_size=90,
-    #     test_size=10,
+    #     data_folder="simdata_train02",
+    #     train_size=1900,
+    #     test_size=200,
     #     epochs=100,
     #     tol=1e-8,
     #     learning_rate=0.001,
-    #     save_model=False,
-    #     device="cuda"
+    #     save_model=False
     # )
+
+
+
+    main(
+        data_folder="temp_file",
+        train_size=90,
+        test_size=10,
+        epochs=100,
+        tol=1e-8,
+        learning_rate=0.001,
+        save_model=False,
+    )

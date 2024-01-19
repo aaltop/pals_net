@@ -220,7 +220,7 @@ def main(
     # should be fine to specify more than the total amount of files
     # in the folder, but best to keep it to a logical amount
     validation_files, _ = get_data_files(
-        data_folder=data_folder, 
+        folder_path, 
         train_size=data_size
     )
 

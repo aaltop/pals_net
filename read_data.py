@@ -18,7 +18,7 @@ import numpy as np
 # PyTorch stuff at least.
 
 def get_data_files(
-        data_folder:str,
+        folder_path:str,
         train_size:int=None,
         test_size:int=None,
         rng:np.random.Generator=None,
@@ -54,7 +54,6 @@ def get_data_files(
     '''
 
 
-    folder_path = os.path.join(os.getcwd(), data_folder)
     data_files = os.listdir(folder_path)
 
     for to_remove in ("metadata.txt", "metadata.json"):
@@ -367,14 +366,15 @@ def test_get_simdata():
     start = time.time()
 
     data_folder = "sim_validation"
-    train_files, test_files = get_data_files(
-        data_folder,
-        )
-    
+
     folder_path = os.path.join(
         os.getcwd(),
         data_folder
     )
+    train_files, test_files = get_data_files(
+        folder_path,
+        )
+    
 
     train_counts, train_components = get_simdata(folder_path, train_files)
     # test_counts, test_components = get_simdata(folder_path, test_files)
