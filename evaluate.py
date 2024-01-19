@@ -212,7 +212,24 @@ def main(
         to the last model in <model_folder>.
     '''
 
-        # get simulated data, process
+    # Load up the model data
+    # ------------------------------------------------
+    if model_folder is None:
+        model_folder = "saved_models"
+
+    model_path = os.path.join(os.getcwd(), model_folder)
+
+    if model_file is None:
+        model_file = os.listdir(model_path)[-1]
+
+    path_to_saved_model = os.path.join(model_path, model_file)
+
+    with open(path_to_saved_model, "rb") as f:
+        train_dict = torch.load(f)
+    
+    # ==================================================
+
+    # get simulated data, process
     # --------------------------
 
     folder_path = os.path.join(os.getcwd(), data_folder)
@@ -239,36 +256,28 @@ def main(
     # ================================================
 
 
-    # Load up the model data
+    
+    # Ready the model
     # ------------------------------------------------
-    if model_folder is None:
-        model_folder = "saved_models"
 
-    model_path = os.path.join(os.getcwd(), model_folder)
+    # older train_dicts didn't have these, so use get with the default
+    # specified
+    dev = train_dict.get("device", "cpu")
+    dtype = train_dict.get("dtype", torch.float32)
 
-    if model_file is None:
-        model_file = os.listdir(model_path)[-1]
-
-    path_to_saved_model = os.path.join(model_path, model_file)
-
-    with open(path_to_saved_model, "rb") as f:
-        state_dict = torch.load(f)
-
-    dev = state_dict["device"]
-    dtype = state_dict["dtype"]
 
     # NOTE: this assumes state_dict contains the model_layers,
     # model_state_dict and the normalisation originally used for
     # the output, as well as used device and data type
-    model = MLP(state_dict["model_layers"]).to(dev, dtype)
-    model.load_state_dict(state_dict["model_state_dict"])
+    model = MLP(train_dict["model_layers"]).to(dev, dtype)
+    model.load_state_dict(train_dict["model_state_dict"])
     model.eval()
 
     # ================================================
 
 
 
-    pred = model(x.to(device=dev, dtype=dtype)).detach()*state_dict["normalisation"]
+    pred = model(x.to(device=dev, dtype=dtype)).detach()*train_dict["normalisation"]
     pred = pred.to("cpu")
 
 
@@ -335,11 +344,11 @@ def main(
 
 if __name__ == "__main__":
 
-    # main(
-    #     data_folder="simdata_evaluate01",
-    #     model_file="model20230503164256.pt"
-    # )
-
     main(
-        data_folder="simdata_evaluate02",
+        data_folder="simdata_evaluate01",
+        model_file="model20230503164256.pt"
     )
+
+    # main(
+    #     data_folder="simdata_evaluate02",
+    # )
