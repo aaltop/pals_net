@@ -18,11 +18,14 @@ import matplotlib.pyplot as plt
 import os
 
 from simulate_spectra import sim_pals
-from train import process_input
 
 from read_data import (
     get_simdata,
     get_data_files
+)
+
+from processing import (
+    process_input
 )
 
 
