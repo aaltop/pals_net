@@ -4,12 +4,31 @@ import logging
 import torch
 import numpy as np
 
-def convert_to_tensor(val):
+def convert_to_tensor(val, device=None, dtype=None):
     '''
     The preferred way to convert to PyTorch tensor due to certain problems
     with dtype.
+
+    Parameters
+    ----------
+
+    ### val : an iterable of numbers
+    
+    ### device : string, default None
+        torch.device to use. If None, defaults to "cpu".
+    
+    ### dtype : Pytorch dtype, default None
+        Datatype to use. If None, defaults to torch.float32.
+
     '''
-    return torch.tensor(np.array(val), dtype=torch.float32)
+
+    if device is None:
+        device = "cpu"
+    
+    if dtype is None:
+        dtype = torch.float32
+
+    return torch.tensor(np.array(val), dtype=dtype, device=device)
 
 def r2_score(pred,y):
     '''

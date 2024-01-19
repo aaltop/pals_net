@@ -140,13 +140,13 @@ def test_prediction(
     print("\nTwo-sample kstest, model prediction against sim data")
     pred_kstest = kstest(true_hist, pred_hist)
     print(pred_kstest)
-    print(np.abs(pred_hist-true_hist).max())
+    print("Maximum absolute deviation between predicted and true:", np.abs(pred_hist-true_hist).max())
     print(pred_kstest.pvalue)
 
     print("\nTwo-sample kstest, naive prediction against sim data")
     naive_kstest = kstest(true_hist, naive_hist)
     print(naive_kstest)
-    print(np.abs(naive_hist-true_hist).max())
+    print("Maximum absolute deviation between predicted and true:", np.abs(naive_hist-true_hist).max())
 
 
     plt.plot(pred_bins, pred_hist, label="predicted")
@@ -239,7 +239,7 @@ def main(
     # ================================================
 
 
-    # Load up the model
+    # Load up the model data
     # ------------------------------------------------
     if model_folder is None:
         model_folder = "saved_models"
@@ -254,20 +254,26 @@ def main(
     with open(path_to_saved_model, "rb") as f:
         state_dict = torch.load(f)
 
+    dev = state_dict["device"]
+    dtype = state_dict["dtype"]
+
     # NOTE: this assumes state_dict contains the model_layers,
     # model_state_dict and the normalisation originally used for
-    # the output
-    model = MLP(state_dict["model_layers"])
+    # the output, as well as used device and data type
+    model = MLP(state_dict["model_layers"]).to(dev, dtype)
     model.load_state_dict(state_dict["model_state_dict"])
     model.eval()
 
     # ================================================
 
-    pred = model(x).detach()*state_dict["normalisation"]
+
+
+    pred = model(x.to(device=dev, dtype=dtype)).detach()*state_dict["normalisation"]
+    pred = pred.to("cpu")
 
 
     print("\nValidation set r-squared:")
-    separate_r2 = r2_score(pred,y)
+    separate_r2 = r2_score(pred, y)
     print("Separate:")
     print(separate_r2)
     print("Mean:")
@@ -329,7 +335,11 @@ def main(
 
 if __name__ == "__main__":
 
+    # main(
+    #     data_folder="simdata_evaluate01",
+    #     model_file="model20230503164256.pt"
+    # )
+
     main(
-        data_folder="simdata_evaluate01",
-        model_file="model20230503164256.pt"
+        data_folder="simdata_evaluate02",
     )

@@ -53,7 +53,7 @@ from pytorchMLP import MLP
 
 _rng = np.random.default_rng()
 
-# It's kind of a stupid name, but don't no what
+# It's kind of a stupid name, but don't know what
 # else to call it
 class Model:
     '''
@@ -68,16 +68,34 @@ class Model:
     ### optim : PyTorch optimiser
 
     ### loss_func : PyTorch loss function
+
+    ### device : string
+        The torch.device to use for computations, e.g. "cpu" for CPU
+        or "cuda" for GPU
+
+    ### dtype : Pytorch dtype
+        Datatype to use
     
     '''
 
-    def __init__(self, model, optim, loss_func):
+    def __init__(self, model, optim, loss_func, device, dtype):
 
         self.inner_model = model
         self.optim = optim
         self.loss_func = loss_func
+        self.device = device
+        self.dtype = dtype
+
+        self.to_device(self.inner_model)
+        self.to_device(self.loss_func)
 
 
+    def to_device(self, arg):
+        '''
+        Moves <arg> to the used device and dtype.
+        '''
+
+        return arg.to(self.device, self.dtype)
     
     def train(self, inputs, outputs, batch_size):
         '''
@@ -373,6 +391,7 @@ def model_training(
     logging.info(f"tolerance: {tolerance}")
     previous_loss = np.inf
     previous_test_r2 = -np.inf
+    best_model_state_dict = deepcopy(model.inner_model.state_dict())
     r2_scores = []
     start = time.time()
     for epoch in range(epochs):
@@ -454,7 +473,9 @@ def main(
         epochs:int,
         tol:float,
         learning_rate=None,
-        save_model=None
+        save_model=None,
+        device=None,
+        dtype=None
 
 ):
     '''
@@ -499,6 +520,20 @@ def main(
         "evaluate.py" for how this happens exactly.
 
         If False, will not save the model.
+
+    ### device : string, default None
+        The name of the device to use, e.g. "cpu" for CPU or "cuda" for
+        GPU.
+
+        If None, test to see whether cuda is available, and uses
+        CPU or GPU based on the test.
+
+    ### dtype : Pytorch dtype, default None
+        The datatype to use. If None, defaults to torch.float32. 
+        
+        NOTE: There seems to be some issue at least with torch.float16, 
+        not sure what. Best to use torch.float32.
+    
     '''
 
     # setup logger
@@ -556,15 +591,27 @@ def main(
     process_input(x_train, num_of_channels, take_average_over=take_average_over, start_index=start_index)
     process_input(x_test, num_of_channels, take_average_over=take_average_over, start_index=start_index)
 
-    x_train = convert_to_tensor(x_train)
-    x_test = convert_to_tensor(x_test)
+    # try changing to GPU
+    if device is None:
+        if torch.cuda.is_available():
+            dev = torch.device("cuda")
+        else:
+            dev = torch.device("cpu")
+    else:
+        dev = device
+
+    if dtype is None:
+        dtype = torch.float32
+
+    x_train = convert_to_tensor(x_train, device=dev, dtype=dtype)
+    x_test = convert_to_tensor(x_test, device=dev, dtype=dtype)
 
     print("Processed input...")
 
-    y_train = convert_to_tensor(y_train)
-    y_test = convert_to_tensor(y_test)
+    y_train = convert_to_tensor(y_train, device=dev, dtype=dtype)
+    y_test = convert_to_tensor(y_test, device=dev, dtype=dtype)
 
-    # for training on just on component
+    # for training on just one component
     # comp = 4
     # y_train = y_train[:,comp].reshape((-1,1))
     # y_test = y_test[:,comp].reshape((-1,1))
@@ -604,10 +651,14 @@ def main(
         learning_rate = 0.005
 
 
+    logging.info(f"Using device {dev}")
+    logging.info(f"Using dtype {dtype}")
     model = Model(
         mlp,
         torch.optim.Adam(mlp.parameters(), lr=learning_rate),
         torch.nn.MSELoss(),
+        device=dev,
+        dtype=dtype
     )
 
     logging.info("\nUsed optimiser:")
@@ -638,7 +689,9 @@ def main(
         whole_state_dict = {
             "model_layers": layer_sizes,
             "model_state_dict": best_model_state_dict,
-            "normalisation": y_train_col_max
+            "normalisation": y_train_col_max,
+            "device": dev,
+            "dtype": dtype
         }
 
         save_model_state_dict(whole_state_dict,date_str)
@@ -648,22 +701,27 @@ def main(
 
 
 if __name__ == "__main__":
-    # main(
-    #     data_folder="simdata_train02",
-    #     train_size=1900,
-    #     test_size=200,
-    #     epochs=100,
-    #     tol=1e-8,
-    #     learning_rate=0.001,
-    #     save_model=False
-    # )
+
 
     main(
-        data_folder="temp_file",
-        train_size=90,
-        test_size=10,
+        data_folder="simdata_train02",
+        train_size=1900,
+        test_size=200,
         epochs=100,
         tol=1e-8,
         learning_rate=0.001,
         save_model=False
     )
+
+
+
+    # main(
+    #     data_folder="temp_file",
+    #     train_size=90,
+    #     test_size=10,
+    #     epochs=100,
+    #     tol=1e-8,
+    #     learning_rate=0.001,
+    #     save_model=False,
+    #     device="cuda"
+    # )
