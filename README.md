@@ -32,7 +32,7 @@ and perhaps some Python knowledge.
 
 ### Dependencies
 
-The tool was written in Python 3.10.9. Dependencies are
+The tool was written in Python 3.11.5. Dependencies are
 
 - [PyTorch](https://pytorch.org/get-started/locally/), recommended
 installation through [conda environment and package manager](https://docs.conda.io/en/latest/miniconda.html).
