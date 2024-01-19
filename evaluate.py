@@ -243,13 +243,16 @@ def main(
 
     x,y = get_simdata(folder_path,validation_files)
 
-    # Should obviously be the same as when training. Could add a more
-    # sensible way to do this, a way to use the same processing as
-    # when training.
-    take_average_over = 5
-    start_index = 0
-    num_of_channels = len(x[0])
-    process_input(x, num_of_channels, take_average_over=take_average_over, start_index=start_index)
+    # this first is for older train_dicts, which did not have the
+    # processing arguments saved
+    if not ("process_input_parameters" in train_dict):
+        take_average_over = 5
+        start_index = 0
+        num_of_channels = len(x[0])
+        process_input(x, num_of_channels, take_average_over, start_index)
+    else:
+        process_input(x, **train_dict["process_input_parameters"])
+
     x = convert_to_tensor(x)
     y = convert_to_tensor(y)
 

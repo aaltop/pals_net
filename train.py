@@ -682,17 +682,24 @@ def main(
     # save model for easy use later
     # --------------------------------------
 
-    if save_model is None:
-        save_model = True
+    if save_model or (save_model is None):
 
-    if save_model:
+        # these are the values used when processing the input,
+        # useful to pass them on so they can also be done when
+        # evaluating the model
+        process_input_parameters = {
+            "num_of_channels":num_of_channels, 
+            "take_average_over":take_average_over, 
+            "start_index":start_index
+        }
 
         whole_state_dict = {
             "model_layers": layer_sizes,
             "model_state_dict": best_model_state_dict,
             "normalisation": y_train_col_max,
             "device": dev,
-            "dtype": dtype
+            "dtype": dtype,
+            "process_input_parameters": process_input_parameters
         }
 
         save_model_state_dict(whole_state_dict,date_str)
