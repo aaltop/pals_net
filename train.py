@@ -70,22 +70,30 @@ class Model:
 
     ### loss_func : PyTorch loss function
 
-    ### device : string
-        The torch.device to use for computations, e.g. "cpu" for CPU
-        or "cuda" for GPU
+    ### scheduler : PyTorch learning rate scheduler, default None
+        If None, no scheduler is used, meaning the learning rate
+        specified for the optimiser is not adjusted.
 
-    ### dtype : Pytorch dtype
+        Used schedulers should be readily usable by just calling
+        their `step()` method.
+
+    ### device : string, default None
+        The torch.device to use for computations, e.g. "cpu" for CPU
+        or "cuda" for GPU. If None, defaults to "cpu".
+
+    ### dtype : Pytorch dtype, default None
         Datatype to use
     
     '''
 
-    def __init__(self, model, optim, loss_func, device, dtype):
+    def __init__(self, model, optim, loss_func, scheduler=None, device=None, dtype=None):
 
         self.inner_model = model
         self.optim = optim
         self.loss_func = loss_func
-        self.device = device
-        self.dtype = dtype
+        self.scheduler = scheduler
+        self.device = "cpu" if device is None else device
+        self.dtype = torch.float32 if dtype is None else dtype
 
         self.to_device(self.inner_model)
         self.to_device(self.loss_func)
@@ -131,7 +139,12 @@ class Model:
 
             self.optim.step()
 
-        return epoch_loss/num_batches
+        average_loss = epoch_loss/num_batches
+
+        if not (self.scheduler is None):
+            self.scheduler.step(average_loss)
+
+        return average_loss
     
     def evaluate(self, inputs, outputs, batch_size):
         '''
@@ -533,10 +546,21 @@ def main(
 
     logging.info(f"Using device {dev}")
     logging.info(f"Using dtype {dtype}")
+
+    optim = torch.optim.Adam(mlp.parameters(), lr=learning_rate)
+    sched = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optim,
+        factor=0.9,
+        patience=10,
+        verbose=True,
+        min_lr=0.0001
+    )
+    sched = None
     model = Model(
         mlp,
-        torch.optim.Adam(mlp.parameters(), lr=learning_rate),
+        optim,
         torch.nn.MSELoss(),
+        scheduler=sched,
         device=dev,
         dtype=dtype
     )
@@ -591,6 +615,17 @@ def main(
 if __name__ == "__main__":
 
 
+    main(
+        data_folder="simdata_train01",
+        train_size=7800,
+        test_size=200,
+        epochs=2500,
+        tol=1e-8,
+        learning_rate=0.01,
+        save_model=False,
+    )
+
+
     # main(
     #     data_folder="simdata_train02",
     #     train_size=1900,
@@ -603,12 +638,12 @@ if __name__ == "__main__":
 
 
 
-    main(
-        data_folder="temp_file",
-        train_size=90,
-        test_size=10,
-        epochs=100,
-        tol=1e-8,
-        learning_rate=0.001,
-        save_model=False,
-    )
+    # main(
+    #     data_folder="temp_file",
+    #     train_size=90,
+    #     test_size=10,
+    #     epochs=600,
+    #     tol=1e-8,
+    #     learning_rate=0.01,
+    #     save_model=False,
+    # )
