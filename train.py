@@ -449,6 +449,8 @@ def main(
     )
 
     logging.info(f"Using data from folder {data_folder}")
+    logging.info(f"Train size: {train_size}")
+    logging.info(f"Test size: {test_size}")
     train_files, test_files = get_data_files(
         data_path,
         train_size,
@@ -465,7 +467,7 @@ def main(
     take_average_over = 5
     start_index = 0
     num_of_channels = len(x_train[0])
-    logging.info(f"averaging input over {take_average_over} bins")
+    logging.info(f"Averaging input over {take_average_over} bins")
     process_input(x_train, num_of_channels, take_average_over=take_average_over, start_index=start_index)
     process_input(x_test, num_of_channels, take_average_over=take_average_over, start_index=start_index)
 
@@ -521,7 +523,7 @@ def main(
     layer_sizes.extend(hidden_layer_sizes)
     layer_sizes.append(output_size)
 
-    logging.info(f"\nlayer sizes: {layer_sizes}")
+    logging.info(f"\nLayer sizes: {layer_sizes}")
 
     mlp = MLP(layer_sizes)
 
@@ -608,5 +610,5 @@ if __name__ == "__main__":
         epochs=100,
         tol=1e-8,
         learning_rate=0.001,
-        save_model=True,
+        save_model=False,
     )
