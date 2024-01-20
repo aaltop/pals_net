@@ -69,3 +69,31 @@ def save_model_state_dict(state_dict:dict, date_and_time:str, folder:str=None):
         torch.save(state_dict,f)
 
     logging.info(f"Saved model to {file_path}")
+
+
+def pretty_print(obj):
+    '''
+    PyTorch-style pretty printing, taken from the PyTorch Optimizer
+    code with some modifications.
+    '''
+
+    format_string = obj.__class__.__name__ + ' ('
+    format_string += '\n'
+
+    for key,value in sorted(obj.state_dict().items()):
+        if key != 'params':
+            format_string += f'    {key}: {value}\n'
+    format_string += ')'
+
+    return format_string
+    
+def test_pretty_print():
+
+    optim = torch.optim.Adam([torch.tensor(1)])
+    sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optim)
+
+    print(pretty_print(sched))
+
+if __name__ == "__main__":
+
+    test_pretty_print()

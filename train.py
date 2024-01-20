@@ -47,7 +47,8 @@ from processing import (
 from pytorch_helpers import (
     r2_score, 
     save_model_state_dict, 
-    convert_to_tensor
+    convert_to_tensor,
+    pretty_print
 )
 
 from pytorchMLP import MLP
@@ -553,9 +554,9 @@ def main(
         factor=0.9,
         patience=10,
         verbose=True,
-        min_lr=0.0001
+        min_lr=0.0005
     )
-    sched = None
+    # sched = None
     model = Model(
         mlp,
         optim,
@@ -567,6 +568,8 @@ def main(
 
     logging.info("\nUsed optimiser:")
     logging.info(model.optim)
+    logging.info("\nUsed scheduler:")
+    logging.info(pretty_print(sched))
     # ======================================
 
     # Do training
@@ -619,8 +622,8 @@ if __name__ == "__main__":
         data_folder="simdata_train01",
         train_size=7800,
         test_size=200,
-        epochs=2500,
-        tol=1e-8,
+        epochs=1,
+        tol=1e-10,
         learning_rate=0.01,
         save_model=False,
     )
