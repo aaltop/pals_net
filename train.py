@@ -425,9 +425,9 @@ def main(
 
     date_str = helpers.date_time_str()
     file_name = "fit" + date_str + ".log"
-    file_path = os.path.join(log_folder, file_name)
+    log_file_path = os.path.join(log_folder, file_name)
 
-    handlers = logging.StreamHandler(sys.stdout), logging.FileHandler(file_path, encoding="utf-8")
+    handlers = logging.StreamHandler(sys.stdout), logging.FileHandler(log_file_path, encoding="utf-8")
 
     logging.basicConfig(
         style="{",
@@ -576,7 +576,8 @@ def main(
             "normalisation": y_train_col_max,
             "device": dev,
             "dtype": dtype,
-            "process_input_parameters": process_input_parameters
+            "process_input_parameters": process_input_parameters,
+            "log_file_path":log_file_path
         }
 
         save_model_state_dict(whole_state_dict,date_str)
@@ -607,5 +608,5 @@ if __name__ == "__main__":
         epochs=100,
         tol=1e-8,
         learning_rate=0.001,
-        save_model=False,
+        save_model=True,
     )

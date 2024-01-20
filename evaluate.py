@@ -190,6 +190,7 @@ def main(
         data_size=None,
         model_folder=None,
         model_file=None,
+        verbose=False
 
 ):
     '''
@@ -213,6 +214,10 @@ def main(
     ### model_file : str, default None
         The name of the file where the model was saved to. Defaults
         to the last model in <model_folder>.
+
+    ### verbose : boolean, default False
+        Whether to have a verbose output. Verbose output includes the
+        corresponding log file when possible.
     '''
 
     # Load up the model data
@@ -229,6 +234,20 @@ def main(
 
     with open(path_to_saved_model, "rb") as f:
         train_dict = torch.load(f)
+
+
+    log_file_path = train_dict.get('log_file_path', None)
+    if verbose and not (log_file_path is None):
+
+        print("---------------------------------------")
+        print(f"Log file at {log_file_path}:\n")
+        log_str = "-LOG"*10+"-"
+        print(log_str)
+        print()
+        with open(log_file_path, "r", encoding="utf-8") as f:
+            print(f.read())
+        
+        print(log_str)
     
     # ==================================================
 
@@ -352,9 +371,11 @@ if __name__ == "__main__":
 
     main(
         data_folder="simdata_evaluate01",
-        model_file="model20230503164256.pt"
+        model_file="model20230503164256.pt",
+        verbose=True
     )
 
     # main(
     #     data_folder="simdata_evaluate02",
+    #     verbose=True
     # )
