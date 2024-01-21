@@ -294,7 +294,13 @@ def main(
     # NOTE: this assumes state_dict contains the model_layers,
     # model_state_dict and the normalisation originally used for
     # the output, as well as used device and data type
-    model = MLP(train_dict["model_layers"]).to(dev, dtype)
+
+    # for older train_dict contents
+    if "model_layers" in train_dict:
+        model = MLP(train_dict["model_layers"]).to(dev, dtype)
+    else:
+        model = MLP(**train_dict["model_kwargs"]).to(dev, dtype)
+
     model.load_state_dict(train_dict["model_state_dict"])
     model.eval()
 
@@ -319,6 +325,7 @@ def main(
 
     residual_normalised = residual/y.mean(dim=0, keepdim=True)
 
+    # number of predicted values
     n_features = residual.size(dim=1)
 
     fig, axes = plt.subplots(
@@ -371,8 +378,7 @@ if __name__ == "__main__":
 
     main(
         data_folder="simdata_evaluate01",
-        model_file="model20230503164256.pt",
-        verbose=True
+        verbose=False
     )
 
     # main(

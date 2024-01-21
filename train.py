@@ -23,15 +23,15 @@ the first time, but second time took around 4 seconds.
 '''
 
 
-import torch
-import numpy as np
 import logging
 #pylint: disable=logging-not-lazy, logging-fstring-interpolation
 import time
 import os
 import sys
 
+import numpy as np
 import matplotlib.pyplot as plt
+import torch
 
 import helpers
 
@@ -356,6 +356,39 @@ def plot_training_results(losses, r2_scores):
     plt.show()
 
 
+def define_mlp(input_size:int, output_size:int, hidden_layer_sizes=None) -> MLP:
+    '''
+    Create the multilayer perceptron.
+
+    Parameters
+    ----------
+
+    ### input_size : int
+    
+    ### output_size : int
+
+    ### hidden_layer_sizes : list of ints, default None
+        The sizes of layers in between the input and output layer.
+        If None, uses a "good" value.
+
+    Returns
+    -------
+
+    ### model : MLP
+        The model.
+    '''
+
+    layer_sizes = []
+    layer_sizes.append(input_size)
+    # decrease hidden layer size each layer 
+    hidden_layer_sizes = [150-i*15 for i in range(10)]
+    # hidden_layer_sizes = [150]*10
+    layer_sizes.extend(hidden_layer_sizes)
+    layer_sizes.append(output_size)
+
+    return MLP(layer_sizes)
+
+
 
 def main(
         data_folder:str,
@@ -529,17 +562,9 @@ def main(
     input_size = x_train[0].shape[0]
     output_size = y_train[0].shape[0]
 
-    layer_sizes = []
-    layer_sizes.append(input_size)
-    # decrease hidden layer size each layer 
-    hidden_layer_sizes = [150-i*15 for i in range(10)]
-    # hidden_layer_sizes = [150]*10
-    layer_sizes.extend(hidden_layer_sizes)
-    layer_sizes.append(output_size)
-
-    logging.info(f"\nLayer sizes: {layer_sizes}")
-
-    mlp = MLP(layer_sizes)
+    network = define_mlp(input_size, output_size)
+    logging.info("\nUsed model:")
+    logging.info(network)
 
     if learning_rate is None:
         learning_rate = 0.005
@@ -548,7 +573,8 @@ def main(
     logging.info(f"Using device {dev}")
     logging.info(f"Using dtype {dtype}")
 
-    optim = torch.optim.Adam(mlp.parameters(), lr=learning_rate)
+    optim = torch.optim.Adam(network.parameters(), lr=learning_rate)
+    # TODO: check out CosineAnnealingWarmRestarts
     sched = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optim,
         factor=0.9,
@@ -556,9 +582,9 @@ def main(
         verbose=True,
         min_lr=0.0005
     )
-    # sched = None
+    sched = None
     model = Model(
-        mlp,
+        network,
         optim,
         torch.nn.MSELoss(),
         scheduler=sched,
@@ -569,7 +595,7 @@ def main(
     logging.info("\nUsed optimiser:")
     logging.info(model.optim)
     logging.info("\nUsed scheduler:")
-    logging.info(pretty_print(sched))
+    logging.info(None if sched is None else pretty_print(sched))
     # ======================================
 
     # Do training
@@ -585,7 +611,9 @@ def main(
     )
     # ======================================
 
-    # save model for easy use later
+    # save model for easy use later (The model loading itself
+    # might be possible to do more easily using "TorchScript", 
+    # but there is all these other bits that need saving too)
     # --------------------------------------
 
     if save_model or (save_model is None):
@@ -599,8 +627,9 @@ def main(
             "start_index":start_index
         }
 
+
         whole_state_dict = {
-            "model_layers": layer_sizes,
+            "model_kwargs": network.instantiation_kwargs,
             "model_state_dict": best_model_state_dict,
             "normalisation": y_train_col_max,
             "device": dev,
@@ -618,14 +647,16 @@ def main(
 if __name__ == "__main__":
 
 
+    torch.manual_seed(1000)
+
     main(
         data_folder="simdata_train01",
         train_size=7800,
         test_size=200,
-        epochs=1,
+        epochs=100,
         tol=1e-10,
-        learning_rate=0.01,
-        save_model=False,
+        learning_rate=0.001,
+        save_model=True,
     )
 
 
@@ -645,8 +676,8 @@ if __name__ == "__main__":
     #     data_folder="temp_file",
     #     train_size=90,
     #     test_size=10,
-    #     epochs=600,
+    #     epochs=1,
     #     tol=1e-8,
-    #     learning_rate=0.01,
-    #     save_model=False,
+    #     learning_rate=0.001,
+    #     save_model=True,
     # )
