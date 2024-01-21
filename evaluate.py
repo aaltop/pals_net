@@ -31,7 +31,7 @@ from processing import (
 
 
 from pytorch_helpers import r2_score
-from pytorchMLP import MLP
+from models import MLP
 from pytorch_helpers import convert_to_tensor
 
 _rng = np.random.default_rng()

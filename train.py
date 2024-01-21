@@ -51,7 +51,7 @@ from pytorch_helpers import (
     pretty_print
 )
 
-from pytorchMLP import MLP
+from models import MLP
 
 _rng = np.random.default_rng()
 
