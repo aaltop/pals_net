@@ -71,16 +71,33 @@ def save_model_state_dict(state_dict:dict, date_and_time:str, folder:str=None):
     logging.info(f"Saved model to {file_path}")
 
 
-def pretty_print(obj):
+def pretty_print(obj, state_dict=None):
     '''
     PyTorch-style pretty printing, taken from the PyTorch Optimizer
     code with some modifications.
+
+    Parameters
+    ----------
+
+    ### obj
+        (Pytorch) object with `state_dict()` method which returns
+        a dictionary. Alternatively,
+        <obj> can be any given instance of a class, if <state_dict>
+        is passed.
+
+    ### state_dict : dict, default None.
+        Any given dictionary. If not None, will be used instead of the state_dict
+        returned by <obj>'s `state_dict()`.
+
     '''
 
-    format_string = obj.__class__.__name__ + ' ('
+    format_string = type(obj).__name__ + ' ('
     format_string += '\n'
 
-    for key,value in sorted(obj.state_dict().items()):
+    if state_dict is None:
+        state_dict = obj.state_dict()
+
+    for key,value in sorted(state_dict.items()):
         if key != 'params':
             format_string += f'    {key}: {value}\n'
     format_string += ')'
