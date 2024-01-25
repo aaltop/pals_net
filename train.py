@@ -51,7 +51,7 @@ from pytorch_helpers import (
     pretty_print
 )
 
-from models import MLP
+from models import MLP, NeuralNet, Conv1
 
 _rng = np.random.default_rng()
 
@@ -267,6 +267,7 @@ def model_training(
     # mainly for checking initial state
     logging.info("Initial state sanity check")
     logging.info("==========================")
+    print(x_train.shape)
     model.evaluate(x_train[:15,], y_train[:15,], batch_size)
     logging.info("==========================")
 
@@ -514,9 +515,9 @@ def main(
     take_average_over = 5
     start_index = 0
     num_of_channels = len(x_train[0])
-    logging.info(f"Averaging input over {take_average_over} bins")
-    process_input(x_train, num_of_channels, take_average_over=take_average_over, start_index=start_index)
-    process_input(x_test, num_of_channels, take_average_over=take_average_over, start_index=start_index)
+    # logging.info(f"Averaging input over {take_average_over} bins")
+    # process_input(x_train, num_of_channels, take_average_over=take_average_over, start_index=start_index)
+    # process_input(x_test, num_of_channels, take_average_over=take_average_over, start_index=start_index)
 
     # try changing to GPU
     if device is None:
@@ -562,7 +563,20 @@ def main(
     input_size = x_train[0].shape[0]
     output_size = y_train[0].shape[0]
 
-    network = define_mlp(input_size, output_size)
+    # network = define_mlp(input_size, output_size)
+
+    linear = torch.nn.LazyLinear
+    conv = Conv1
+
+    layers = [
+        (conv(1,3,5,5), True),
+        (conv(3,1,3,), True),
+        (torch.nn.Flatten(), False),
+        (linear(output_size), False)
+    ]
+    
+    network = NeuralNet(layers)
+
     logging.info("\nUsed model:")
     logging.info(network)
 
@@ -653,10 +667,10 @@ if __name__ == "__main__":
         data_folder="simdata_train01",
         train_size=7800,
         test_size=200,
-        epochs=100,
+        epochs=600,
         tol=1e-10,
         learning_rate=0.001,
-        save_model=True,
+        save_model=False,
     )
 
 
@@ -676,8 +690,8 @@ if __name__ == "__main__":
     #     data_folder="temp_file",
     #     train_size=90,
     #     test_size=10,
-    #     epochs=1,
+    #     epochs=300,
     #     tol=1e-8,
     #     learning_rate=0.001,
-    #     save_model=True,
+    #     save_model=False,
     # )

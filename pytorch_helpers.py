@@ -103,7 +103,55 @@ def pretty_print(obj, state_dict=None):
     format_string += ')'
 
     return format_string
-    
+
+
+def conv_expand(tensor):
+    '''
+    Expand <tensor> of shape (batch_size, signal_length) to the 
+    shape (batch_size, channel_count = 1, signal_length) or shape (signal_length) to the 
+    shape (channel_count = 1, signal_length) for use
+    with torch.nn.Conv1d.
+
+    At least 1D convolutions in PyTorch require input to be in the shape
+    (batch_size, channel_count, signal_length) or 
+    (channel_count, signal_length), which is difficult
+    to work with when input to a model is otherwise (batch_size, signal_length).
+    '''
+
+    length = len(tensor.shape)
+
+    match length:
+        case 2:
+            batch_size, signal_length = tensor.shape
+            return tensor.reshape((batch_size, 1, signal_length))
+        case 1: # in case the tensor is just one batch as one dimension
+            return tensor.reshape((1,-1))
+        case _:
+            return tensor
+
+
+def conv_compress(tensor):
+    '''
+    Compress <tensor> of shape (batch_size, channel_count = 1, signal_length) to the 
+    shape (batch_size, signal_length) or shape (channel_count = 1, signal_length) to the 
+    shape (signal_length) for use with torch.nn.Conv1d.
+
+    see also `conv_expand()`.
+    '''
+
+    length = len(tensor.shape)
+
+    match length:
+        case 3:
+            batch_size, _, signal_length = tensor.shape
+            return tensor.reshape((batch_size, signal_length))
+        case 2:
+            return tensor.reshape((tensor.shape[-1]))
+        case _:
+            raise ValueError("Shape of <tensor> should be 2 or 3.")
+
+
+
 def test_pretty_print():
 
     optim = torch.optim.Adam([torch.tensor(1)])

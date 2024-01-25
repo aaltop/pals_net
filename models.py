@@ -1,6 +1,6 @@
 import abc
 
-from pytorch_helpers import pretty_print
+from pytorch_helpers import pretty_print, conv_expand, conv_compress
 
 import torch
 
@@ -72,6 +72,7 @@ class MLP(torch.nn.Module, AbstractModel):
     def forward(self, x):
 
         for layer in self.layers[:-1]:
+
             x = torch.nn.functional.relu(layer(x))
 
         x = self.layers[-1](x)
@@ -82,6 +83,65 @@ class MLP(torch.nn.Module, AbstractModel):
     def instantiation_kwargs(self):
 
         return super().instantiation_kwargs
+
+class Conv1(torch.nn.Conv1d):
+    '''
+    Modifies the PyTorch Conv1d to be usable with input data of the
+    form (batch_size, signal_length).
+    '''
+
+    def forward(self, input):
+
+        input = conv_expand(input)
+        return super().forward(input)
+
+class NeuralNet(torch.nn.Module, AbstractModel):
+    '''
+    For generic networks.
+    '''
+
+    def __init__(self, layers):
+        '''
+        
+
+        Parameters
+        ----------
+
+        layers : list of (module, boolean)
+            The module should subclass torch.nn.Module, and the boolean
+            determines whether an activation function should be applied
+            to that layer.
+        '''
+
+        super().__init__()
+
+        self._instantiation_kwargs = {
+            "layers": layers
+        }
+
+        modules, use_activation = zip(*layers)
+
+        self.layers = torch.nn.ModuleList(modules)
+        
+        activation_function = torch.nn.functional.relu
+        # for whether to use activation function or just do identity
+        self.activation = [activation_function if acti else lambda val: val for acti in use_activation]
+
+    def forward(self, x):
+
+        for i, layer in enumerate(self.layers[:-1]):
+                x = self.activation[i](layer(x))
+
+        x = self.layers[-1](x)
+
+        return x
+
+    @property
+    def instantiation_kwargs(self):
+
+        return super().instantiation_kwargs
+
+
     
 
 if __name__ == "__main__":
@@ -93,3 +153,11 @@ if __name__ == "__main__":
     print(model)
     model2 = MLP(**model.instantiation_kwargs)
     print(model2)
+
+    # linear = torch.nn.LazyLinear
+    # conv = torch.nn.Conv1d
+    # nn = NeuralNet(
+    #     conv(1,3,5,5),
+    #     conv(1,1,3,),
+    #     linear()
+    # )
