@@ -51,6 +51,8 @@ from pytorch_helpers import (
     pretty_print
 )
 
+from active_plot import active_plotting
+
 from models import MLP, NeuralNet, Conv1
 
 _rng = np.random.default_rng()
@@ -222,6 +224,7 @@ def model_training(
         model:Model,
         epochs,
         tolerance,
+        monitor=False
     ):
 
     '''
@@ -250,6 +253,9 @@ def model_training(
         The "best" state dict of the model. Best in this case
         means the model that had the highest test r-squared score. Note
         that the r-squared score is only calculated every 10 epochs.
+
+    ### monitor : boolean
+        Whether to plot the score and update the plot in "real" time.
     '''
 
     from copy import deepcopy
@@ -274,10 +280,6 @@ def model_training(
     # Do optimisation
     #-------------------------------------
 
-    #TODO: Some variable learning rate could be added. Best option
-    # is likely the pytorch LR schedulers, particularly
-    # ReduceLROnPlateu. 
-
     losses = [0]*epochs
     logging.info(f"\nEpochs: {epochs}")
     logging.info(f"tolerance: {tolerance}")
@@ -286,6 +288,7 @@ def model_training(
     best_model_state_dict = deepcopy(model.inner_model.state_dict())
     r2_scores = []
     start = time.time()
+    monitoring_initialized = False
     for epoch in range(epochs):
         print("\033[K",end="")
         print(f"{epoch+1}/{epochs}", end="\r")
@@ -305,6 +308,29 @@ def model_training(
             if previous_test_r2 < test_r2:
                 previous_test_r2 = test_r2
                 best_model_state_dict = deepcopy(model.inner_model.state_dict())
+
+            # TODO: While this plotting works, it's not entirely ideal.
+            # Might want to use the animation module of matplotlib for
+            # something that probably works better. The issue there
+            # is that there is no class (as far as I can tell) that
+            # allows updating an animation at certain loop intervals,
+            # only at certain times. The timed version might also
+            # be alright, would have to test though.
+
+            # continuous plot of training process
+            if monitor and epoch > 0 and 0 == epoch%100:
+                x,_,test_y = np.array(r2_scores).T
+
+                if not monitoring_initialized:
+                    fig, axs = plt.subplots(2,1)
+                    [ax.plot([],[]) for ax in axs]
+                    axs[0].set_yscale("log")
+                    plt.show(block=False)
+                    monitoring_initialized = True
+
+                r2_geq_zero = np.nonzero(test_y >= 0)
+                active_plotting(axs, [(range(epoch),losses[:epoch]), (x[r2_geq_zero],test_y[r2_geq_zero])])
+                plt.pause(0.01)
 
         # tolerance
         if abs(current_loss-previous_loss)/previous_loss <= tolerance:
@@ -344,6 +370,7 @@ def plot_training_results(losses, r2_scores):
         train_r2 = r2_scores[:,1][r2_geq_zero]
         epoch_r2 = r2_scores[:,0][r2_geq_zero]
         test_r2 = test_r2[r2_geq_zero]
+
 
     logging.info("Max test R2:")
     logging.info(test_r2.max())
@@ -401,7 +428,8 @@ def main(
         save_model=None,
         device=None,
         dtype=None,
-        input_preprocessing=False
+        input_preprocessing=False,
+        monitor=False
 
 ):
     '''
@@ -465,6 +493,9 @@ def main(
         used with the MLP, and preprocessing might be better switched
         for just a convolution or averaging layer anyway.
 
+    ### monitor : boolean, default False
+        Whether to continuously plot the training scores.
+        
     '''
 
     # setup logger
@@ -636,7 +667,8 @@ def main(
         (x_test, y_test),
         model,
         epochs,
-        tol
+        tol,
+        monitor=monitor
     )
     # ======================================
 
@@ -685,10 +717,11 @@ if __name__ == "__main__":
         data_folder="simdata_train01",
         train_size=7800,
         test_size=200,
-        epochs=30,
+        epochs=1000,
         tol=1e-10,
         learning_rate=0.001,
         save_model=False,
+        monitor=True
     )
 
 
@@ -712,4 +745,5 @@ if __name__ == "__main__":
     #     tol=1e-8,
     #     learning_rate=0.001,
     #     save_model=False,
+    #     monitor=False
     # )
