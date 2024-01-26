@@ -31,7 +31,7 @@ from processing import (
 
 
 from pytorch_helpers import r2_score
-from models import MLP
+from models import MLP, NeuralNet
 from pytorch_helpers import convert_to_tensor
 
 _rng = np.random.default_rng()
@@ -272,7 +272,7 @@ def main(
         start_index = 0
         num_of_channels = len(x[0])
         process_input(x, num_of_channels, take_average_over, start_index)
-    else:
+    elif not (train_dict["process_input_parameters"] is None):
         process_input(x, **train_dict["process_input_parameters"])
 
     x = convert_to_tensor(x)
@@ -295,11 +295,12 @@ def main(
     # model_state_dict and the normalisation originally used for
     # the output, as well as used device and data type
 
+    network = NeuralNet
     # for older train_dict contents
     if "model_layers" in train_dict:
         model = MLP(train_dict["model_layers"]).to(dev, dtype)
     else:
-        model = MLP(**train_dict["model_kwargs"]).to(dev, dtype)
+        model = network(**train_dict["model_kwargs"]).to(dev, dtype)
 
     model.load_state_dict(train_dict["model_state_dict"])
     model.eval()

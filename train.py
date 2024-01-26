@@ -400,7 +400,8 @@ def main(
         learning_rate=None,
         save_model=None,
         device=None,
-        dtype=None
+        dtype=None,
+        input_preprocessing=False
 
 ):
     '''
@@ -459,6 +460,11 @@ def main(
         NOTE: There seems to be some issue at least with torch.float16, 
         not sure what. Best to use torch.float32.
     
+    ### input_preprocessing : boolean, default False.
+        Whether to perform preprocessing on the input. This was mainly
+        used with the MLP, and preprocessing might be better switched
+        for just a convolution or averaging layer anyway.
+
     '''
 
     # setup logger
@@ -512,12 +518,13 @@ def main(
 
     # Averaging over the input data. Could make this more easily
     # modifiable as well.
-    take_average_over = 5
-    start_index = 0
-    num_of_channels = len(x_train[0])
-    # logging.info(f"Averaging input over {take_average_over} bins")
-    # process_input(x_train, num_of_channels, take_average_over=take_average_over, start_index=start_index)
-    # process_input(x_test, num_of_channels, take_average_over=take_average_over, start_index=start_index)
+    if input_preprocessing:
+        take_average_over = 5
+        start_index = 0
+        num_of_channels = len(x_train[0])
+        logging.info(f"Averaging input over {take_average_over} bins")
+        process_input(x_train, num_of_channels, take_average_over=take_average_over, start_index=start_index)
+        process_input(x_test, num_of_channels, take_average_over=take_average_over, start_index=start_index)
 
     # try changing to GPU
     if device is None:
@@ -597,6 +604,12 @@ def main(
         min_lr=0.0005
     )
     sched = None
+
+    loss_kwargs = {
+
+    }
+    loss = torch.nn.MSELoss(**loss_kwargs)
+
     model = Model(
         network,
         optim,
@@ -610,6 +623,8 @@ def main(
     logging.info(model.optim)
     logging.info("\nUsed scheduler:")
     logging.info(None if sched is None else pretty_print(sched))
+    logging.info("Used loss:")
+    logging.info(pretty_print(loss, loss_kwargs))
     # ======================================
 
     # Do training
@@ -632,14 +647,6 @@ def main(
 
     if save_model or (save_model is None):
 
-        # these are the values used when processing the input,
-        # useful to pass them on so they can also be done when
-        # evaluating the model
-        process_input_parameters = {
-            "num_of_channels":num_of_channels, 
-            "take_average_over":take_average_over, 
-            "start_index":start_index
-        }
 
 
         whole_state_dict = {
@@ -648,9 +655,20 @@ def main(
             "normalisation": y_train_col_max,
             "device": dev,
             "dtype": dtype,
-            "process_input_parameters": process_input_parameters,
             "log_file_path":log_file_path
         }
+
+        # these are the values used when preprocessing the input,
+        # useful to pass them on so they can also be done when
+        # evaluating the model
+        if input_preprocessing:
+            whole_state_dict["process_input_parameters"] = {
+                "num_of_channels":num_of_channels, 
+                "take_average_over":take_average_over, 
+                "start_index":start_index
+            }
+        else:
+            whole_state_dict["process_input_parameters"] = None
 
         save_model_state_dict(whole_state_dict,date_str)
     # ======================================
@@ -667,7 +685,7 @@ if __name__ == "__main__":
         data_folder="simdata_train01",
         train_size=7800,
         test_size=200,
-        epochs=600,
+        epochs=30,
         tol=1e-10,
         learning_rate=0.001,
         save_model=False,
