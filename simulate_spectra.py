@@ -26,11 +26,12 @@ like the one commented in the `main` function to the
 It's recommended to create a separate set of simulated data for training
 and tests data and another for validation data.
 """
+import json
+import os
+from inspect import getsource
 
 import numpy as np
 import pandas as pd
-import json
-import os
 
 _rng = np.random.default_rng()
 
@@ -424,7 +425,7 @@ def write_simulation_data(
     time_ps, counts = sim_pals(input_prm, rng)
     data = np.stack((time_ps, counts), axis=-1)
 
-    # write simulation data and metadata
+    # write simulation data and metadata (could be own function)
     try:
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(input_prm, f)
@@ -605,6 +606,7 @@ def random_input_prm(rng=None):
         rng = _rng
 
     num_events = int(rng.uniform(200_000, 1_100_000))
+    # num_events = 5_000_000
 
     bkg = (1_000_000*0.005)/num_events
 
@@ -626,14 +628,16 @@ def random_input_prm(rng=None):
 
     components = list(zip(lifetimes,intensities))
 
+    offset = 1000 + rng.uniform(low=0, high=100)
+
     input_prm = {"num_events": num_events,
                  "bkg": bkg,
                  "components": components,
                  "bin_size": 25,
                  "time_gate": 10_000,
-                 "sigma_start": 68,
-                 "sigma_stop": 68,
-                 "offset": 1000}
+                 "sigma_start": 65,
+                 "sigma_stop": 65,
+                 "offset": offset}
     
 
     return input_prm
@@ -679,12 +683,30 @@ def write_many_simulations(sims_to_write, folder_name=None, input_prm=None):
 
     file_index = None
 
+    folder_path = os.path.join(os.getcwd(), folder_name)
+
+    # write the used input parameters to a file
+    # --------------------------------------------
+    meta_path = os.path.join(folder_path,"metadata.txt")
+    if not os.path.exists(meta_path):
+        with open(meta_path, "w", encoding="utf-8") as f:
+
+            if random_input:
+                # actually just saves the whole state of the function
+                # used to generate the data
+                f.write(getsource(random_input_prm))
+            else:
+                json.dump(input_prm, f, indent=4)
+
+    # ===============================================
+
     for i in range(sims_to_write):
         print("\033[K",end="")
         print(f"{i+1}/{sims_to_write}", end="\r")
             
         if random_input:
             input_prm = random_input_prm()
+
 
         file_index = write_simulation_data(
             input_prm, 
@@ -697,6 +719,7 @@ def write_many_simulations(sims_to_write, folder_name=None, input_prm=None):
         file_index += 1
 
     print()
+
 
 def main():
     import time
@@ -717,8 +740,8 @@ def main():
     print("Starting to write simulations...")
     start = time.time()
     write_many_simulations(
-        sims_to_write=200,
-        folder_name="sim_validation",
+        sims_to_write=1900,
+        folder_name="simdata_train01",
         input_prm=None
     )
     stop = time.time()
