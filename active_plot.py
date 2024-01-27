@@ -8,7 +8,7 @@ def active_plotting(axes, x_y_data):
 
     ### axes : iterable of matplotlib Axes
     
-    ### x_y_data : list of tuples of (x,y)
+    ### x_y_data : list of lists of tuples of (x,y)
         Should be as long as <axes>, with each x and y representing
         data to be plotted to the corresponding value in <axes>.
     '''
@@ -16,9 +16,9 @@ def active_plotting(axes, x_y_data):
     for i in range(len(axes)):
 
         ax = axes[i]
-        x,y = x_y_data[i]
-        line, = ax.get_lines()
-        line.set_data(x,y)
+        cur_data = x_y_data[i]
+        for j,line in enumerate(ax.get_lines()):
+            line.set_data(*cur_data[j])
         ax.relim()
         ax.autoscale(True)
 

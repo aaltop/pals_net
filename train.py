@@ -319,17 +319,35 @@ def model_training(
 
             # continuous plot of training process
             if monitor and epoch > 0 and 0 == epoch%100:
-                x,_,test_y = np.array(r2_scores).T
+                x,train_y,test_y = np.array(r2_scores).T
+
+                r2_geq_zero = np.nonzero(test_y >= 0)
+                r2_x = x[r2_geq_zero]
+
+                to_plot = [
+                    [
+                        (range(epoch),losses[:epoch])
+                    ],
+                    [
+                        (r2_x,test_y[r2_geq_zero]),
+                        (r2_x, train_y[r2_geq_zero])
+                    ]
+                ]
 
                 if not monitoring_initialized:
                     fig, axs = plt.subplots(2,1)
-                    [ax.plot([],[]) for ax in axs]
+
+                    for i in range(len(to_plot)):
+                        for j in range(len(to_plot[i])):
+                            axs[i].plot(*to_plot[i][j])
+
                     axs[0].set_yscale("log")
                     plt.show(block=False)
                     monitoring_initialized = True
 
-                r2_geq_zero = np.nonzero(test_y >= 0)
-                active_plotting(axs, [(range(epoch),losses[:epoch]), (x[r2_geq_zero],test_y[r2_geq_zero])])
+                
+
+                active_plotting(axs, to_plot)
                 plt.pause(0.01)
 
         # tolerance
@@ -605,11 +623,13 @@ def main(
 
     linear = torch.nn.LazyLinear
     conv = Conv1
+    pool = torch.nn.MaxPool1d
 
     layers = [
         (conv(1,3,5,5), True),
-        (conv(3,1,3,), True),
+        (conv(3,27,3,), True),
         (torch.nn.Flatten(), False),
+        (linear(output_size*9), True),
         (linear(output_size), False)
     ]
     
@@ -715,12 +735,12 @@ if __name__ == "__main__":
 
     main(
         data_folder="simdata_train01",
-        train_size=7800,
-        test_size=200,
-        epochs=1000,
+        train_size=19500,
+        test_size=500,
+        epochs=10000,
         tol=1e-10,
-        learning_rate=0.001,
-        save_model=False,
+        learning_rate=0.00025,
+        save_model=True,
         monitor=True
     )
 
