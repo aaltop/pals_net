@@ -8,14 +8,12 @@ import numpy as np
 
 
 
-# TODO: might want to change this folder vs. path thing, to just
-# use the path in all cases. A lot of these are used back-to-back,
-# so it's faster to just define the data_path once and pass it
-# to each function. In any case, having a more unified interface
-# structure would be good.
 
-# NOTE: Might be best to just make a PyTorch dataloader for the
+# TODO: Might be best to just make a PyTorch dataloader for the
 # PyTorch stuff at least.
+
+# NOTE: Currently it's best to use get_simdata if just reading in
+# the data and components
 
 def get_data_files(
         folder_path:str,
@@ -307,7 +305,26 @@ def get_simdata(folder_path:str, file_names:list[str]):
         return counts, np.array(components)
 
 
-        
+def get_input_prm(folder_path, file_names:list[str]):
+    '''
+    Get the input parameters used to create the data in <folder_path>.
+    '''
+
+    with contextlib.chdir(folder_path):
+
+        for i,file in enumerate(file_names):
+            with open(file, "r", encoding="utf-8") as f:
+                if 0 == i:
+                    input_prm = json.loads(f.readline())
+                    for key in input_prm:
+                        input_prm[key] = [input_prm[key]]
+                else:
+                    dicti = json.loads(f.readline())
+                    for key in dicti:
+                        input_prm[key].append(dicti[key])
+
+    return input_prm
+  
 
 def test_metadata():
     folder = os.path.join(os.getcwd(), "simdata")
@@ -385,6 +402,21 @@ def test_get_simdata():
     print(len(train_counts))
     print(train_components)
 
+def test_get_input_prm():
+
+    folder_path = os.path.join(
+        os.getcwd(),
+        "simdata_train01"
+    )
+
+    get_data_files(folder_path)
+    input_prm = get_input_prm(folder_path, get_data_files(folder_path)[0])
+
+    for key,value in input_prm.items():
+        input_prm[key] = [np.min(value, axis=0), np.max(value, axis=0)]
+    
+    print(input_prm)
+
 def main():
 
     folder_path = os.path.join(os.getcwd(), "simdata")
@@ -400,4 +432,4 @@ def main():
 
 if __name__ == "__main__":
 
-    test_get_simdata()
+    test_get_input_prm()
