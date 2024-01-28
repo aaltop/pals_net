@@ -28,6 +28,7 @@ from processing import (
     process_input
 )
 
+from helpers import one_line_print
 
 
 from pytorch_helpers import r2_score
@@ -41,8 +42,7 @@ def simulate_pred_and_true_spectra(
         input_prm=None
 ):
     '''
-    With the input, makes a prediction using <model>. Then simulates
-    a PALS spectrum with both the predicted output and the true
+    Simulates a PALS spectrum with both the predicted output and the true
     output, and returns the spectra.
 
     Parameters
@@ -109,6 +109,7 @@ def simulate_pred_and_true_spectra(
 
 def test_prediction(
     pred_and_true_comp,
+    rng
 ):
     
     '''
@@ -118,13 +119,31 @@ def test_prediction(
     Parameters
     ----------
 
-    ### pred_and_true_comp : list (length 2) of tensors
+    ### pred_and_true_comp : list of lists (of length 2) of tensors
         the predicted and true components.
+
+    ### rng : numpy rng
     '''
 
-    (pred_bins, pred_hist), (true_bins, true_hist) = (
-        simulate_pred_and_true_spectra(pred_and_true_comp)
-        )
+
+    ks_metrics = []
+    p_thres = 0.05
+    rejects = 0
+    # The shuffle doesn't really do anything meaningful at this
+    # point, it just ensures that some variables further down
+    # need not be changed. Could probably just pick a random
+    # set of hists from here as a more sensible alternative.
+    rand_idx = np.arange(len(pred_and_true_comp))
+    rng.shuffle(rand_idx)
+    for step,i in enumerate(rand_idx):
+        one_line_print(f"Simulating spectra {step+1}/{len(rand_idx)}")
+        comps = pred_and_true_comp[i]
+        (pred_bins, pred_hist), (true_bins, true_hist) = (
+            simulate_pred_and_true_spectra(comps)
+            )
+        pvalue = kstest(true_hist, pred_hist).pvalue
+        rejects += 1 if pvalue < p_thres else 0
+        ks_metrics.append(kstest(true_hist, pred_hist).pvalue)
 
     # here, the components are kind of mean values of the simulated
     # data. Would need to change this obviously, if using some other
@@ -157,9 +176,6 @@ def test_prediction(
     plt.title("Prediction versus true spectrum, randomly chosen simulation data (validation set)")
 
 
-    
-
-
     # plt.plot(naive_bins, naive_hist, label="naive")
 
     # plt.plot(np.sort(pred_hist)/pred_hist.max(), label="predicted CDF")
@@ -180,6 +196,10 @@ def test_prediction(
     plt.ylabel("counts")
     # plt.yscale("log")
     plt.title(f"Predicted vs. true spectrum residual\n KS test p-value {pred_kstest.pvalue:.4f}")
+    plt.show()
+
+    plt.hist(ks_metrics)
+    plt.title(f"Kolmogorov-Smirnov test p-values histogram, rejected: {rejects}")
     plt.show()
 
 
@@ -368,9 +388,11 @@ def main(
     # # to first see if it can, on its own, get the right values. This
     # # does seem to be close to one and at least not greater, but it
     # # isn't so great to have it less than one either.
+    # TODO: add softmax to intensities
     # print(pred[1::2].sum())
 
-    test_prediction([one_pred,one_y])
+    # test_prediction([one_pred,one_y])
+    test_prediction([(pred[i,:], y[i,:]) for i in range(len(pred))], _rng)
 
 
 
