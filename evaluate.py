@@ -13,7 +13,10 @@ change in the function:
 
 import torch
 import numpy as np
-from scipy.stats import kstest
+from scipy.stats import (
+    kstest,
+    ttest_ind
+)
 import matplotlib.pyplot as plt
 import os
 
@@ -126,6 +129,8 @@ def test_prediction(
     '''
 
 
+    # Calculate KS metrics for each evaluate data point
+    # ------------------------------
     ks_metrics = []
     p_thres = 0.05
     rejects = 0
@@ -135,6 +140,7 @@ def test_prediction(
     # set of hists from here as a more sensible alternative.
     rand_idx = np.arange(len(pred_and_true_comp))
     rng.shuffle(rand_idx)
+    rand_idx = [rand_idx[0]]
     for step,i in enumerate(rand_idx):
         one_line_print(f"Simulating spectra {step+1}/{len(rand_idx)}")
         comps = pred_and_true_comp[i]
@@ -144,6 +150,8 @@ def test_prediction(
         pvalue = kstest(true_hist, pred_hist).pvalue
         rejects += 1 if pvalue < p_thres else 0
         ks_metrics.append(kstest(true_hist, pred_hist).pvalue)
+
+    # ====================================
 
     # here, the components are kind of mean values of the simulated
     # data. Would need to change this obviously, if using some other
@@ -170,9 +178,41 @@ def test_prediction(
     print(naive_kstest)
     print("Maximum absolute deviation between predicted and true:", np.abs(naive_hist-true_hist).max())
 
+    # Calculate the intervals (mean and variance) for one predicted and true case
+    # -----------------------------------
+    n = 100
+    preds = [0]*n
+    trues = [0]*n
+    for i in range(n):
 
-    plt.plot(pred_bins, pred_hist, label="predicted")
-    plt.plot(true_bins, true_hist, linestyle="dashed", label="true")
+        (pred_bins, pred_hist), (true_bins, true_hist) = (
+            simulate_pred_and_true_spectra(comps)
+            )
+        
+        preds[i] = pred_hist
+        trues[i] = true_hist
+
+    preds = np.vstack(preds)
+    preds_std = np.std(preds, axis=0)
+    preds_mean = np.mean(preds, axis=0)
+    preds_lower = preds_mean-2*preds_std
+    preds_upper = preds_mean+2*preds_std
+    preds_ci = [preds_lower, preds_mean, preds_upper]
+
+    trues = np.vstack(trues)
+    trues_std = np.std(trues, axis=0)
+    trues_mean = np.mean(trues, axis=0)
+    trues_lower = trues_mean-2*trues_std
+    trues_upper = trues_mean+2*trues_std
+    trues_ci = [trues_lower, trues_mean, trues_upper]
+
+
+    # ===========================================
+
+
+
+    plt.plot(pred_bins, np.vstack(preds_ci).T, label="predicted")
+    plt.plot(true_bins, np.vstack(trues_ci).T, linestyle="dashed", label="true")
     plt.title("Prediction versus true spectrum, randomly chosen simulation data (validation set)")
 
 
@@ -180,6 +220,7 @@ def test_prediction(
 
     # plt.plot(np.sort(pred_hist)/pred_hist.max(), label="predicted CDF")
     # plt.plot(np.sort(sim_y_hist)/sim_y_hist.max(), linestyle="dashed", label="true CDF")
+
 
     plt.legend()
     plt.xlabel("time (ps)")
@@ -189,14 +230,25 @@ def test_prediction(
     plt.show()
 
 
-    plt.plot(pred_bins, pred_hist-true_hist, label="residual")
+
+
+    plt.plot(pred_bins, np.vstack((trues_ci[0]-trues_ci[1],preds_ci[1]-trues_ci[1], trues_ci[2]-trues_ci[1])).T, label="residual")
+
+    # Two-sample t-test p-values for n simulated spectra one test for each bin
+    ttest_p = ttest_ind(trues, preds, equal_var=False).pvalue
+    p_ratio = np.sum(ttest_p >= 0.05)/len(ttest_p)
 
     plt.legend()
     plt.xlabel("time (ps)")
     plt.ylabel("counts")
     # plt.yscale("log")
-    plt.title(f"Predicted vs. true spectrum residual\n KS test p-value {pred_kstest.pvalue:.4f}")
+    plt.title(f"Predicted vs. true spectrum residual, normalised\n KS test p-value {pred_kstest.pvalue:.4f} \n two-sample t-test ratio of >=0.05: {p_ratio:.4f}")
     plt.show()
+
+    # plt.hist(ttest_ind(trues, preds, equal_var=False).pvalue, label="var False")
+    # plt.hist(ttest_ind(trues, preds, equal_var=True).pvalue, label="var True", alpha=0.5)
+    # plt.title(f"Two-sample t-test p-values for {n} simulated spectra\n one test for each bin")
+    # plt.show()
 
     plt.hist(ks_metrics)
     plt.title(f"Kolmogorov-Smirnov test p-values histogram, rejected: {rejects}")
@@ -296,6 +348,7 @@ def main(
         process_input(x, **train_dict["process_input_parameters"])
 
     x = convert_to_tensor(x)
+    x /= torch.amax(x, dim=1).reshape((-1,1))
     y = convert_to_tensor(y)
 
     # ================================================
