@@ -141,7 +141,36 @@ class NeuralNet(torch.nn.Module, AbstractModel):
 
         return super().instantiation_kwargs
 
+class PALS_CNN(NeuralNet):
+    '''
+    At the end, computes a softmax on half the input from the previous
+    layer.
+    '''
 
+
+    def __init__(self, layers):
+
+        super().__init__(layers)
+
+        # assume data points in rows
+        self.softmax = torch.nn.Softmax(1)
+
+    def forward(self, x):
+
+        x = super().forward(x)
+
+        # return lifetimes (even indices) and intensities (odd indices)
+        lifetimes = x[:,::2]
+        # intensities = self.softmax(x[:,1::2])
+        intensities = x[:,1::2]
+        return lifetimes, intensities 
+    
+    @property
+    def instantiation_kwargs(self):
+
+        instantiation_kwargs = super().instantiation_kwargs
+        instantiation_kwargs["softmax applied to intensities":self.softmax]
+        return instantiation_kwargs
     
 
 if __name__ == "__main__":

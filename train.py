@@ -53,7 +53,7 @@ from pytorch_helpers import (
 
 from active_plot import active_plotting
 
-from models import MLP, NeuralNet, Conv1
+from models import MLP, NeuralNet, Conv1, PALS_CNN
 
 _rng = np.random.default_rng()
 
@@ -109,6 +109,33 @@ class Model:
 
         return arg.to(self.device, self.dtype)
     
+    
+    def transform_true(self, true):
+        '''
+        Transforms the true "output" <true> to match how <self.inner_model>
+        outputs the predictions.
+        '''
+
+        return true
+    
+    def calculate_loss(self, pred, true):
+        '''
+        Calculates the loss based on <pred>, the output from the neural
+        net, and <true>, the true outputs, and return the loss.
+        '''
+
+        if isinstance(pred, tuple):
+            loss = None
+            for pred_i, true_i in zip(pred, true):
+                if loss is None:
+                    loss = self.loss_func(pred_i, true_i)
+                else:
+                    loss += self.loss_func(pred_i, true_i)
+        else:
+            loss = self.loss_func(pred, true)
+
+        return loss
+
     def train(self, inputs, outputs, batch_size):
         '''
         Does one iteration of model training.
@@ -127,7 +154,7 @@ class Model:
 
         for i in range(num_batches):
             x = inputs[i*batch_size:(i+1)*batch_size,:]
-            y = outputs[i*batch_size:(i+1)*batch_size,:]
+            y = self.transform_true(outputs[i*batch_size:(i+1)*batch_size,:])
 
 
             self.optim.zero_grad()
@@ -135,8 +162,7 @@ class Model:
             pred = self.inner_model(x)
 
             # print(pred)
-
-            loss = self.loss_func(pred, y)
+            loss = self.calculate_loss(pred, y)
             loss.backward()
             epoch_loss += loss.item()
 
@@ -174,23 +200,35 @@ class Model:
 
             for i in range(num_batches):
                 x = inputs[i*batch_size:(i+1)*batch_size,:]
-                y = outputs[i*batch_size:(i+1)*batch_size,:]
+                y = self.transform_true(outputs[i*batch_size:(i+1)*batch_size,:])
 
                 pred = self.inner_model(x)
 
-                logging.info("prediction:")
-                logging.info(pred)
-                logging.info("true:")
-                logging.info(y)
-                logging.info("difference:")
-                logging.info((pred-y).abs())
+                # in case predictions are more than one tensor
+                if isinstance(pred, tuple):
+                    pred_and_true = zip(pred, y)
+                else:
+                    pred_and_true = ((pred, y),)
 
-                loss = self.loss_func(pred, y)
-                logging.info("loss:")
-                logging.info(loss.item())
-                logging.info("R2:")
-                logging.info(r2_score(pred,y).mean().item())
-                epoch_loss += loss.item()
+                for pred_i, true_i in pred_and_true:
+
+                    logging.info("prediction:")
+                    logging.info(pred_i)
+
+                    logging.info("true:")
+                    logging.info(true_i)
+
+                    logging.info("difference:")
+                    logging.info((pred_i-true_i).abs())
+
+                    loss = self.loss_func(pred_i, true_i).item()
+                    logging.info("loss:")
+                    logging.info(loss)
+
+                    logging.info("R2:")
+                    logging.info(r2_score(pred_i,true_i).mean().item())
+
+                    epoch_loss += loss
 
             logging.info("mean loss:")
             logging.info(epoch_loss/num_batches)
@@ -209,8 +247,13 @@ class Model:
 
         self.inner_model.eval()
         with torch.no_grad():
-
-            r2 = r2_score(self.inner_model(inputs), outputs).mean().item()
+            
+            pred = self.inner_model(inputs)
+            if isinstance(pred, tuple):
+                matches = zip(pred, self.transform_true(outputs))
+                r2 = torch.cat([r2_score(pred_i, true_i) for pred_i, true_i in matches]).mean().item()
+            else:
+                r2 = r2_score(pred, outputs).mean().item()
 
         if do_logging:
             logging.info("\nR-squared:")
@@ -263,11 +306,11 @@ def model_training(
     x_train, y_train = train_data
     x_test, y_test = test_data
 
-    # excepts a data set greater than 20. A larger batch size
+    # A larger batch size
     # can speed up training by making each epoch take less time,
     # but equally a smaller batch size might reach a good score
     # earlier in epochs compared to a larger batch size.
-    batch_size = y_train.shape[0]//20
+    batch_size = max(y_train.shape[0]//20,1)
     logging.info(f"\nBatch size: {batch_size}")
 
     # mainly for checking initial state
@@ -340,6 +383,7 @@ def model_training(
                     for i in range(len(to_plot)):
                         for j in range(len(to_plot[i])):
                             axs[i].plot(*to_plot[i][j])
+                            axs[i].grid(visible=True)
 
                     axs[0].set_yscale("log")
                     plt.show(block=False)
@@ -363,6 +407,10 @@ def model_training(
     logging.info(f"Fitting took {stop-start} seconds")
     logging.info(f"Total epochs run: {epoch+1}")
     logging.info(f"Final loss: {current_loss}")
+
+    logging.info("\n End evaluation")
+    logging.info("==================")
+    model.evaluate(x_train[:15,], y_train[:15,], batch_size)
 
     return losses, r2_scores, best_model_state_dict
 
@@ -390,7 +438,7 @@ def plot_training_results(losses, r2_scores):
         test_r2 = test_r2[r2_geq_zero]
 
 
-    logging.info("Max test R2:")
+    logging.info(f"Max test R2 at epoch {1+test_r2.argmax()*10}:")
     logging.info(test_r2.max())
 
     ax[1].plot(epoch_r2, train_r2, label="Train R2")
@@ -604,6 +652,8 @@ def main(
     # if values in y_test are larger than in y_train, as the idea
     # would be to normalise to one?)
     y_train_col_max = y_train.amax(dim=0)
+    # don't normalise intensities
+    # y_train_col_max[1::2] = 1.0
     y_train /= y_train_col_max
     y_test /= y_train_col_max
 
@@ -630,10 +680,12 @@ def main(
         (conv(3,27,3,), True),
         (torch.nn.Flatten(), False),
         (linear(output_size*9), True),
-        (linear(output_size), False)
+        (linear(output_size), False),
     ]
     
-    network = NeuralNet(layers)
+    # network = NeuralNet(layers)
+    network = PALS_CNN(layers)
+
 
     logging.info("\nUsed model:")
     logging.info(network)
@@ -661,7 +713,15 @@ def main(
     }
     loss = torch.nn.MSELoss(**loss_kwargs)
 
-    model = Model(
+    class PALSModel(Model):
+
+        def transform_true(self, true):
+            
+            return (true[:,::2], true[:,1::2])
+        
+    
+
+    model = PALSModel(
         network,
         optim,
         torch.nn.MSELoss(),
@@ -735,12 +795,12 @@ if __name__ == "__main__":
 
     main(
         data_folder="simdata_train01",
-        train_size=19500,
+        train_size=29500,
         test_size=500,
-        epochs=10000,
-        tol=1e-10,
-        learning_rate=0.00025,
-        save_model=True,
+        epochs=1800,
+        tol=1e-18,
+        learning_rate=0.0001,
+        save_model=False,
         monitor=True
     )
 
@@ -765,5 +825,5 @@ if __name__ == "__main__":
     #     tol=1e-8,
     #     learning_rate=0.001,
     #     save_model=False,
-    #     monitor=False
+    #     monitor=True
     # )
