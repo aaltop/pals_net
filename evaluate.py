@@ -28,7 +28,8 @@ from read_data import (
 )
 
 from processing import (
-    process_input
+    process_input_mlp,
+    process_input01
 )
 
 from helpers import one_line_print
@@ -343,12 +344,12 @@ def main(
         take_average_over = 5
         start_index = 0
         num_of_channels = len(x[0])
-        process_input(x, num_of_channels, take_average_over, start_index)
-    elif not (train_dict["process_input_parameters"] is None):
-        process_input(x, **train_dict["process_input_parameters"])
+        process_input_mlp(x, num_of_channels, take_average_over, start_index)
+    elif (train_dict["process_input_parameters"]["func_name"] == "process_input_mlp"):
+        process_input_mlp(x, **train_dict["process_input_parameters"])
 
     x = convert_to_tensor(x)
-    x /= torch.amax(x, dim=1).reshape((-1,1))
+    x = process_input01(x)
     y = convert_to_tensor(y)
 
     # ================================================

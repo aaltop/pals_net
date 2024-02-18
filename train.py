@@ -41,7 +41,8 @@ from read_data import (
 )
 
 from processing import (
-    process_input
+    process_input_mlp,
+    process_input01
 )
 
 from pytorch_helpers import (
@@ -317,7 +318,7 @@ def model_training(
     logging.info("Initial state sanity check")
     logging.info("==========================")
     print(x_train.shape)
-    model.evaluate(x_train[:15,], y_train[:15,], batch_size)
+    model.evaluate(x_test[:15,], y_test[:15,], batch_size)
     logging.info("==========================")
 
     # Do optimisation
@@ -410,7 +411,7 @@ def model_training(
 
     logging.info("\n End evaluation")
     logging.info("==================")
-    model.evaluate(x_train[:15,], y_train[:15,], batch_size)
+    model.evaluate(x_test[:15,], y_test[:15,], batch_size)
 
     return losses, r2_scores, best_model_state_dict
 
@@ -494,7 +495,7 @@ def main(
         save_model=None,
         device=None,
         dtype=None,
-        input_preprocessing=False,
+        input_preprocessing=True,
         monitor=False
 
 ):
@@ -555,9 +556,7 @@ def main(
         not sure what. Best to use torch.float32.
     
     ### input_preprocessing : boolean, default False.
-        Whether to perform preprocessing on the input. This was mainly
-        used with the MLP, and preprocessing might be better switched
-        for just a convolution or averaging layer anyway.
+        Whether to perform preprocessing on the input.
 
     ### monitor : boolean, default False
         Whether to continuously plot the training scores.
@@ -616,12 +615,13 @@ def main(
     # Averaging over the input data. Could make this more easily
     # modifiable as well.
     if input_preprocessing:
-        take_average_over = 5
-        start_index = 0
-        num_of_channels = len(x_train[0])
-        logging.info(f"Averaging input over {take_average_over} bins")
-        process_input(x_train, num_of_channels, take_average_over=take_average_over, start_index=start_index)
-        process_input(x_test, num_of_channels, take_average_over=take_average_over, start_index=start_index)
+        pass
+        # take_average_over = 5
+        # start_index = 0
+        # num_of_channels = len(x_train[0])
+        # logging.info(f"Averaging input over {take_average_over} bins")
+        # process_input_mlp(x_train, num_of_channels, take_average_over=take_average_over, start_index=start_index)
+        # process_input_mlp(x_test, num_of_channels, take_average_over=take_average_over, start_index=start_index)
 
     # try changing to GPU
     if device is None:
@@ -637,6 +637,14 @@ def main(
 
     x_train = convert_to_tensor(x_train, device=dev, dtype=dtype)
     x_test = convert_to_tensor(x_test, device=dev, dtype=dtype)
+
+    # print(x_train[0])
+    # print(x_test[0])
+
+    if input_preprocessing:
+        process_input = process_input01
+        x_train = process_input(x_train)
+        x_test = process_input(x_test)
 
     print("Processed input...")
 
@@ -683,8 +691,8 @@ def main(
         (linear(output_size), False),
     ]
     
-    # network = NeuralNet(layers)
-    network = PALS_CNN(layers)
+    network = NeuralNet(layers)
+    # network = PALS_CNN(layers)
 
 
     logging.info("\nUsed model:")
@@ -721,7 +729,7 @@ def main(
         
     
 
-    model = PALSModel(
+    model = Model(
         network,
         optim,
         torch.nn.MSELoss(),
@@ -774,10 +782,13 @@ def main(
         # useful to pass them on so they can also be done when
         # evaluating the model
         if input_preprocessing:
+            # whole_state_dict["process_input_parameters"] = {
+            #     "num_of_channels":num_of_channels, 
+            #     "take_average_over":take_average_over, 
+            #     "start_index":start_index
+            # }
             whole_state_dict["process_input_parameters"] = {
-                "num_of_channels":num_of_channels, 
-                "take_average_over":take_average_over, 
-                "start_index":start_index
+                "func_name": process_input.__name__
             }
         else:
             whole_state_dict["process_input_parameters"] = None
@@ -797,10 +808,10 @@ if __name__ == "__main__":
         data_folder="simdata_train01",
         train_size=29500,
         test_size=500,
-        epochs=1800,
+        epochs=15000,
         tol=1e-18,
         learning_rate=0.0001,
-        save_model=False,
+        save_model=True,
         monitor=True
     )
 
