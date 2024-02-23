@@ -430,7 +430,7 @@ def write_simulation_data(
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(input_prm, f)
             f.write("\n")
-            np.savetxt(f, data)
+            np.savetxt(f, data, fmt=r"%d")
 
     # don't want incomplete data files
     except BaseException as e:
@@ -620,6 +620,7 @@ def random_input_prm(rng=None):
     ]
 
     
+    # TODO: replace with Dirichlet distribution?
     intensities = [0]*3
     intensities[-1] = rng.uniform(0.001,0.04)*remaining
     remaining -= intensities[-1]
@@ -685,10 +686,12 @@ def write_many_simulations(sims_to_write, folder_name=None, input_prm=None):
 
     folder_path = os.path.join(os.getcwd(), folder_name)
 
+    os.makedirs(folder_path, exist_ok=True)
+
     # write the used input parameters to a file
     # --------------------------------------------
     meta_path = os.path.join(folder_path,"metadata.txt")
-    if not os.path.exists(meta_path):
+    if not os.path.exists(meta_path): # if the metadata file has not been created yet
         with open(meta_path, "w", encoding="utf-8") as f:
 
             if random_input:
@@ -740,13 +743,21 @@ def main():
     print("Starting to write simulations...")
     start = time.time()
     write_many_simulations(
-        sims_to_write=1900,
-        folder_name="simdata_train01",
+        sims_to_write=900,
+        folder_name="temp_file",
         input_prm=None
     )
     stop = time.time()
     print(f"Simulation writing took {stop-start} seconds.")
 
+# NOTE: see about numpy savez_compressed for possibly improving
+# space usage and load times (actually, use pytorch .save)
+
 if __name__ == "__main__":
+
+    # from profiling import profile
+
+    # cmd = "main()"
+    # profile(cmd, "simdata_write.txt", "time")
 
     main()
