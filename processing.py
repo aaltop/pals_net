@@ -10,12 +10,15 @@ from read_data import (
     get_components,
 )
 
+import torch
+
 from pytorch_helpers import (
     convert_to_tensor
 )
 
 
-def process_input(data, num_of_channels=None, take_average_over=None, start_index=None):
+# TODO: maybe just replace this with a convolution?
+def process_input_mlp(data, num_of_channels=None, take_average_over=None, start_index=None):
     '''
     Cut off counts in <data> such that only data from the
     <start_index> onwards up to <num_of_channels> beyond the <start_index> 
@@ -108,7 +111,7 @@ def fetch_and_process_input(
         start_index = 0
 
     logging.info(f"averaging input over {take_average_over} bins")
-    process_input(inputs, num_of_channels, take_average_over=take_average_over, start_index=start_index)
+    process_input_mlp(inputs, num_of_channels, take_average_over=take_average_over, start_index=start_index)
 
     return convert_to_tensor(inputs)
 
@@ -131,3 +134,15 @@ def fetch_output(folder_path, data_files):
     metadata = read_metadata(folder_path)
     outputs = get_components(metadata, data_files)
     return convert_to_tensor(outputs)
+
+
+def process_input01(x):
+    '''
+    Assume x is input data, with rows being data points.
+    '''
+
+    x += 1
+    x = x/torch.amax(x, dim=1).reshape((-1,1))
+    x = torch.log(x)
+    return x
+    

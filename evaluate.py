@@ -36,7 +36,7 @@ from helpers import one_line_print
 
 
 from pytorch_helpers import r2_score
-from models import MLP, NeuralNet
+from models import MLP, NeuralNet, PALS_CNN
 from pytorch_helpers import convert_to_tensor
 
 _rng = np.random.default_rng()
@@ -336,7 +336,8 @@ def main(
         train_size=data_size
     )
 
-    x,y = get_simdata(folder_path,validation_files)
+    inputs = train_dict.get("sim_inputs", ("components"))
+    x,y = get_simdata(folder_path,validation_files, inputs)
 
     # this first is for older train_dicts, which did not have the
     # processing arguments saved
@@ -370,6 +371,7 @@ def main(
     # the output, as well as used device and data type
 
     network = NeuralNet
+    network = PALS_CNN
     # for older train_dict contents
     if "model_layers" in train_dict:
         model = MLP(train_dict["model_layers"]).to(dev, dtype)
@@ -381,10 +383,22 @@ def main(
 
     # ================================================
 
+    pred = model(x.to(device=dev, dtype=dtype))
+    # if output prediction comes as multiple tensors in tuple. Map columns in
+    # the prediction tensors to how they are in the original, true output "y"
+    if "idx" in train_dict:
+        cols_n = sum(map(len, train_dict["idx"]))
+        col_index = []
+        for idx_list in train_dict["idx"]:
+            col_index += idx_list
+
+        pred_to_y_conversion = [val[0] for val in sorted(enumerate(col_index), key=lambda x: x[1])]
+        pred = torch.column_stack(pred)[:, pred_to_y_conversion]
 
 
-    pred = model(x.to(device=dev, dtype=dtype)).detach()*train_dict["normalisation"]
+    pred = pred.detach()*train_dict["normalisation"]
     pred = pred.to("cpu")
+
 
 
     print("\nValidation set r-squared:")

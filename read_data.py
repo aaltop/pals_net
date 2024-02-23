@@ -245,16 +245,13 @@ def get_train_or_test(folder_path:str, file_names, col_names=None):
 
     return data
 
-def get_simdata(folder_path:str, file_names:list[str]):
+def get_simdata(folder_path:str, file_names:list[str], inputs):
     '''
     Returns both the simulation counts and the inputs used for the
     simulation, both of which should be in one file. The inputs
     (simulation input parameters) should be on the first line of the
     file as a (json deserialisable) dictionary, and the simulation
-    time and counts make up the rest of the file, in two columns. The
-    input parameter dictionary should contain a "components" key,
-    which points to a list of lists (or similar), where every sublist 
-    contains a [lifetime, intensity] pair.
+    time and counts make up the rest of the file, in two columns.
 
     Parameters
     ----------
@@ -266,15 +263,22 @@ def get_simdata(folder_path:str, file_names:list[str]):
     ### file_names : list of strings
         The names of the files to get the data from.
 
+    ### inputs : list of strings
+        The used inputs. The strings should match the keys of the JSON
+        dictionary. The items are expected to be either scalar or
+        a list, with any lists flattened in to the output. Lists should
+        contain lists as elements, with the inner lists containing scalars.
+
     Returns
     -------
 
-    ### counts, components : list of numpy arrays
+    ### counts: list of numpy arrays
         The counts of the spectra. Currently needs to be a list because
-        gets processed later, which requires the list.
+        may get processed later, which requires the list.
 
     ### components : numpy array
-        The components (lifetimes and intensities) of the spectra.
+        The inputs used in simulating the spectra, in the order specified
+        by <inputs>.
     '''
 
     components = [0]*len(file_names)
@@ -292,10 +296,31 @@ def get_simdata(folder_path:str, file_names:list[str]):
                 # get the components (lifetimes and intensities)
                 input_prm_str = f.readline()
                 input_prm = json.loads(input_prm_str)
-                comp_list = input_prm["components"]
-                comps = [
-                    elem for sublist in comp_list for elem in sublist
-                ]
+                comps = []
+                for key in inputs:
+                    
+                    _input = input_prm[key]
+                    # The assumption is that the "components" are in
+                    # a list of lists, with inner lists having
+                    # lifetime, intensity pairs, while other input
+                    # parameters are scalar.
+                    # This is already unnecessary complex to work with,
+                    # so it's better to limit it to a very specific case,
+                    # rather than give more wiggle-room for stupid stuff.
+                    # It would be better to have the input parameters
+                    # in a nicer format in the saved files, where every
+                    # item is scalar, but I'd rather not have to 
+                    # generate all that data again right now, and it's
+                    # generally a hassle. Of course,
+                    # the assumption would be that the simulation would
+                    # not really change all that much, though it certainly
+                    # could.
+                    if isinstance(_input, list):
+                        for sub_list in _input:
+                            comps += sub_list
+                    else:
+                        comps.append(_input)
+                    
                 components[i] = comps
 
                 # get the counts
@@ -382,7 +407,7 @@ def test_get_simdata():
 
     start = time.time()
 
-    data_folder = "sim_validation"
+    data_folder = "temp_file"
 
     folder_path = os.path.join(
         os.getcwd(),
@@ -392,8 +417,11 @@ def test_get_simdata():
         folder_path,
         )
     
-
-    train_counts, train_components = get_simdata(folder_path, train_files)
+    inputs = (
+        "components",
+        "bkg",
+    )
+    train_counts, train_components = get_simdata(folder_path, train_files, inputs)
     # test_counts, test_components = get_simdata(folder_path, test_files)
 
     print(f"Took {time.time()-start} seconds.")
@@ -432,4 +460,4 @@ def main():
 
 if __name__ == "__main__":
 
-    test_get_input_prm()
+    test_get_simdata()

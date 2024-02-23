@@ -22,11 +22,12 @@ processing of of 7500 train data and 500 test data took 70 seconds
 the first time, but second time took around 4 seconds.
 '''
 
+import os
+# os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 import logging
 #pylint: disable=logging-not-lazy, logging-fstring-interpolation
 import time
-import os
 import sys
 
 import numpy as np
@@ -607,8 +608,20 @@ def main(
         test_size,
     )
 
-    x_train, y_train = get_simdata(data_path, train_files)
-    x_test, y_test = get_simdata(data_path, test_files)
+    inputs = (
+        "components",
+        "bkg"
+    )
+    x_train, y_train = get_simdata(data_path, train_files, inputs)
+    x_test, y_test = get_simdata(data_path, test_files, inputs)
+
+    # "components" contains lifetime-intensity pairs, "bkg" should
+    # scalar at the end of a row
+    y_train_cols = y_train.shape[1]
+    lifetime_idx = list(range(0,y_train_cols-1,2))
+    intensity_idx = list(range(1,y_train_cols-1,2))
+    bkg_idx = y_train_cols-1
+    softmax_idx = intensity_idx + [bkg_idx]
 
     print("Fetched input and output...")
 
@@ -638,8 +651,10 @@ def main(
     x_train = convert_to_tensor(x_train, device=dev, dtype=dtype)
     x_test = convert_to_tensor(x_test, device=dev, dtype=dtype)
 
-    # print(x_train[0])
-    # print(x_test[0])
+    print(x_train[0])
+    print(x_test[0])
+    print(y_train[0])
+    print(y_test[0])
 
     if input_preprocessing:
         process_input = process_input01
@@ -660,8 +675,8 @@ def main(
     # if values in y_test are larger than in y_train, as the idea
     # would be to normalise to one?)
     y_train_col_max = y_train.amax(dim=0)
-    # don't normalise intensities
-    # y_train_col_max[1::2] = 1.0
+    # don't normalise intensities or background
+    y_train_col_max[softmax_idx] = 1.0
     y_train /= y_train_col_max
     y_test /= y_train_col_max
 
@@ -691,8 +706,12 @@ def main(
         (linear(output_size), False),
     ]
     
-    network = NeuralNet(layers)
-    # network = PALS_CNN(layers)
+    # network = NeuralNet(layers)
+    normal_idx = lifetime_idx
+    network = PALS_CNN(
+        layers,
+        [normal_idx, softmax_idx]
+    )
 
 
     logging.info("\nUsed model:")
@@ -725,11 +744,11 @@ def main(
 
         def transform_true(self, true):
             
-            return (true[:,::2], true[:,1::2])
+            return (true[:,normal_idx], true[:,softmax_idx])
         
     
 
-    model = Model(
+    model = PALSModel(
         network,
         optim,
         torch.nn.MSELoss(),
@@ -767,7 +786,7 @@ def main(
 
     if save_model or (save_model is None):
 
-
+        idx = [normal_idx, softmax_idx]
 
         whole_state_dict = {
             "model_kwargs": network.instantiation_kwargs,
@@ -775,7 +794,10 @@ def main(
             "normalisation": y_train_col_max,
             "device": dev,
             "dtype": dtype,
-            "log_file_path":log_file_path
+            "log_file_path":log_file_path,
+            "idx":idx,
+            "sim_inputs":inputs,
+
         }
 
         # these are the values used when preprocessing the input,
@@ -804,16 +826,16 @@ if __name__ == "__main__":
 
     torch.manual_seed(1000)
 
-    main(
-        data_folder="simdata_train01",
-        train_size=29500,
-        test_size=500,
-        epochs=15000,
-        tol=1e-18,
-        learning_rate=0.0001,
-        save_model=True,
-        monitor=True
-    )
+    # main(
+    #     data_folder="simdata_train01",
+    #     train_size=29500,
+    #     test_size=500,
+    #     epochs=3000,
+    #     tol=1e-18,
+    #     learning_rate=0.0001,
+    #     save_model=False,
+    #     monitor=True
+    # )
 
 
     # main(
@@ -828,13 +850,13 @@ if __name__ == "__main__":
 
 
 
-    # main(
-    #     data_folder="temp_file",
-    #     train_size=90,
-    #     test_size=10,
-    #     epochs=300,
-    #     tol=1e-8,
-    #     learning_rate=0.001,
-    #     save_model=False,
-    #     monitor=True
-    # )
+    main(
+        data_folder="temp_file",
+        train_size=900,
+        test_size=100,
+        epochs=200,
+        tol=1e-18,
+        learning_rate=0.0001,
+        save_model=True,
+        monitor=True
+    )

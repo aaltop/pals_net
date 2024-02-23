@@ -107,10 +107,11 @@ class NeuralNet(torch.nn.Module, AbstractModel):
         Parameters
         ----------
 
-        layers : list of (module, boolean)
+        ### layers : list of (module, boolean)
             The module should subclass torch.nn.Module, and the boolean
             determines whether an activation function should be applied
             to that layer.
+
         '''
 
         super().__init__()
@@ -143,33 +144,51 @@ class NeuralNet(torch.nn.Module, AbstractModel):
 
 class PALS_CNN(NeuralNet):
     '''
-    At the end, computes a softmax on half the input from the previous
+    At the end, computes a softmax on some of the input from the previous
     layer.
     '''
 
 
-    def __init__(self, layers):
+    def __init__(self, layers, idx):
+        '''
+        
+        Parameters
+        ----------
+
+        ### layers : list of (module, boolean)
+            The module should subclass torch.nn.Module, and the boolean
+            determines whether an activation function should be applied
+            to that layer.
+
+
+        ### idx : list of list of int
+            Element one contains a list of indices to not compute
+            softmax on, while element two contains a list of indices
+            to compute softmax on.
+
+        '''
 
         super().__init__(layers)
+        self._instantiation_kwargs["idx"] = idx
 
         # assume data points in rows
         self.softmax = torch.nn.Softmax(1)
+        self.normal_idx, self.softmax_idx = idx
 
     def forward(self, x):
 
         x = super().forward(x)
 
-        # return lifetimes (even indices) and intensities (odd indices)
-        lifetimes = x[:,::2]
-        # intensities = self.softmax(x[:,1::2])
-        intensities = x[:,1::2]
-        return lifetimes, intensities 
+        # technically unnecessary, could just take the right amount
+        # in sequence
+        normal = x[:,self.normal_idx]
+        softmaxxed = self.softmax(x[:,self.softmax_idx])
+        return normal, softmaxxed 
     
     @property
     def instantiation_kwargs(self):
 
         instantiation_kwargs = super().instantiation_kwargs
-        instantiation_kwargs["softmax applied to intensities":self.softmax]
         return instantiation_kwargs
     
 
