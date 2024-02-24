@@ -22,7 +22,7 @@ import logging
 def process_input(data, num_of_channels=None, take_average_over=None, start_index=None):
     '''
     Cut off counts in <data> such that only data from the
-    max value onwards up to <num_of_channels> beyond the max 
+    <start_index> onwards up to <num_of_channels> beyond the <start_index> 
     is considered, and takes non-rolling means of <take_average_over> values 
     of the result.
 
@@ -59,7 +59,11 @@ def process_input(data, num_of_channels=None, take_average_over=None, start_inde
         if start_index is None:
             start_index = data[i].argmax()
         # average over <take_average_over> value groups (non-rolling)
-        averaged_data = data[i][start_index:start_index+num_of_channels].reshape((-1,take_average_over)).mean(axis=1)
+        used_data = data[i][start_index:start_index+num_of_channels]
+        # take a divisible number of data points
+        data_length = (used_data.flatten().shape[0]//take_average_over)*take_average_over
+        
+        averaged_data = used_data[:data_length].reshape((-1,take_average_over)).mean(axis=1)
         # normalise
         data[i] = averaged_data/averaged_data.max()
 
@@ -192,14 +196,14 @@ def main():
     # get training and test input, process them
     # --------------------------
 
-    folder = "simdata_more_random"
+    folder = "simdata_more_random3"
     logging.info(f"simdata folder: {folder}")
     folder_path = os.path.join(os.getcwd(), folder)
     data_files = os.listdir(folder_path)
     data_files.remove("metadata.txt")
 
-    train_size = 50
-    test_size = 10
+    train_size = 500
+    test_size = 100
 
     logging.info(f"train size: {train_size}")
 

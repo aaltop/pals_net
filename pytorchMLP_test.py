@@ -202,39 +202,7 @@ def evaluate(model, inputs, outputs, batch_size, loss_func):
 
         logging.info("mean loss:")
         logging.info(epoch_loss/num_batches)
-        
-
-def save_model_state_dict(state_dict:dict, date_and_time:str, folder:str=None):
-    '''
-    Save a <state_dict>, such as the one returned from a PyTorch model's
-    .state_dict() method. <folder> specifies the folder to save
-    the data in, and defaults to "saved_models" if None.
-
-    The file will be called model<date_and_time>.pt.
-    '''
-
-    if folder is None:
-        folder = "saved_models"
-
-    models_folder = os.path.join(
-        os.getcwd(),
-        folder
-    )
-
-    if not os.path.exists(models_folder):
-        os.mkdir(models_folder)
     
-    model_file_name = "model" + date_and_time + ".pt"
-
-    file_path = os.path.join(models_folder,model_file_name)
-
-    with open(
-        file_path, 
-        "wb") as f:
-
-        torch.save(state_dict,f)
-
-    logging.info(f"Saved model to {file_path}")
 
 
 def model_training():
@@ -494,15 +462,13 @@ def model_testing():
     from read_data import get_train_or_test
     from read_data import get_components
 
-    from monte_carlo_PALS_TA import sim_pals, sim_pals_separate, concat_events, do_histogram
+    from monte_carlo_PALS_TA import sim_pals
 
     from scipy.stats import kstest
 
     rng = np.random.default_rng()
 
-    start = time.time()
-
-    # get training and test input, process them
+    # get simulated data, process
     # --------------------------
 
     folder = "simdata_more_random3"
@@ -510,31 +476,54 @@ def model_testing():
     data_files = os.listdir(folder_path)
     data_files.remove("metadata.txt")
 
-    file_number = rng.integers(low=0, high=4001)
+    file_number = rng.integers(low=3805, high=4001)
     data_file = [data_files[file_number]]
 
-    x_train = get_train_or_test(folder_path, data_file)
+    sim_x = get_train_or_test(folder_path, data_file)
 
-    num_of_channels = x_train[0].shape[0]
+    num_of_channels = sim_x[0].shape[0]
     take_average_over = 5
     start_index = 0
-    process_input(x_train, num_of_channels, take_average_over=take_average_over, start_index=start_index)
+    process_input(sim_x, num_of_channels, take_average_over=take_average_over, start_index=start_index)
 
 
     # need to use float32 due to problems with mismatch, but should not be a problem
     conv_to_tensor = lambda val: torch.tensor(np.array(val), dtype=torch.float32)
 
-    x_train = conv_to_tensor(x_train)
+    sim_x = conv_to_tensor(sim_x)
+
+    # what the data was fit on: lifetimes, intensities or both ("all")
+    output_to_fit = "all"
+    # get output and process
+    metadata = read_metadata(folder_path)
+    sim_y = get_components(metadata, data_file, output_to_fit)
+    sim_y = conv_to_tensor(sim_y)
 
     # ================================================
 
-    # what to fit on: lifetimes, intensities or both ("all")
-    output_to_fit = "all"
 
-    # get output data
-    metadata = read_metadata(folder_path)
-    y_train = get_components(metadata, data_file, output_to_fit)
-    y_train = conv_to_tensor(y_train)
+    # NOTE: real data is has a time gate of 10_000, which is not
+    # what the simulated data the models have been trained on has.
+    # Would need to train of different data
+    # get real data
+    # --------------------------------
+    # real_folder = os.path.join(
+    #     os.getcwd(),
+    #     "Experimental_data20230215"
+    # )
+
+    # real_data_files = [file for file in os.listdir(real_folder) if file.endswith(".pals")]
+
+    # real_data_file = [real_data_files[rng.integers(low=0, high=len(real_data_files))]]
+
+    # real_metadata = read_metadata(real_folder, "metadata.json")
+    # real_x = get_train_or_test(real_folder, real_data_file)
+    # process_input(real_x, num_of_channels, take_average_over=take_average_over)
+    # real_y = get_components(real_metadata, real_data_file, output_to_fit)
+
+    # real_x = conv_to_tensor(real_x)
+    # real_y = conv_to_tensor(real_y)
+    # ========================================
     
 
     model_to_test = r"C:\Users\OMISTAJA\Desktop\Läksyt\2022-04\DSProject\Data_science_project_2023\saved_models\model20230413221636.pt"
@@ -547,18 +536,14 @@ def model_testing():
     model.load_state_dict(state_dict["model_state_dict"])
     model.eval()
 
-    pred = model(x_train).detach()
+    pred = model(sim_x).detach()*state_dict["normalisation"]
 
     # y_train_col_max = conv_to_tensor(
     #     [2.9490e+02, 8.4497e-01, 4.7999e+02, 2.9710e-01, 1.7999e+03, 3.9749e-02]
     # )
 
-
-
-    pred *= state_dict["normalisation"]
-
     pred = pred.flatten()
-    y_train = y_train.flatten()
+    sim_y = sim_y.flatten()
 
     print(pred)
     # so obviously the intensities are not currently constrained to
@@ -567,7 +552,7 @@ def model_testing():
     # does seem to be close to one and at least not greater, but it
     # isn't so great to have it less than one either.
     print(pred[1::2].sum())
-    print(y_train)
+    print(sim_y)
 
 
     # TODO: have a "naive" prediction of just the mean components,
@@ -584,28 +569,74 @@ def model_testing():
                     "offset": 2000}
     pred_bins, pred_hist = sim_pals(pred_input, rng)
 
-    y_train_components = [y_train[2*i:2*i+2].tolist() for i in range(3)]
-
-    y_train_input = {"num_events": 1_000_000,
+    sim_y_components = [sim_y[2*i:2*i+2].tolist() for i in range(3)]
+    sim_y_input = {"num_events": 1_000_000,
                     "bkg": 0.0,
-                    "components": y_train_components,
+                    "components": sim_y_components,
                     "bin_size": 25,
                     "time_gate": 15_000,
                     "sigma_start": 68,
                     "sigma_stop": 68,
                     "offset": 2000}
-    y_train_bins, y_train_hist = sim_pals(y_train_input, rng)
+    sim_y_bins, sim_y_hist = sim_pals(sim_y_input, rng)
 
-    print("Two-sample kstest")
-    print(kstest(y_train_hist, pred_hist))
-    print(np.abs(pred_hist-y_train_hist).max())
+    # here, the components are kind of mean values of the simulated
+    # data.
+    naive_input = {"num_events": 1_000_000,
+                    "bkg": 0.0,
+                    "components": [(245, 0.77), (400, 0.2095), (1500, 0.0205)],
+                    "bin_size": 25,
+                    "time_gate": 15_000,
+                    "sigma_start": 68,
+                    "sigma_stop": 68,
+                    "offset": 2000}
+    naive_bins, naive_hist = sim_pals(naive_input, rng)
+
+    # pred_real = model(real_x).detach()*state_dict["normalisation"].flatten()
+    # real_y = real_y.flatten()
+    # pred_real_components = [pred_real[2*i:2*i+2].tolist() for i in range(3)]
+    # pred_real_input = {"num_events": 1_000_000,
+    #                 "bkg": 0.0,
+    #                 "components": pred_real_components,
+    #                 "bin_size": 25,
+    #                 "time_gate": 15_000,
+    #                 "sigma_start": 68,
+    #                 "sigma_stop": 68,
+    #                 "offset": 2000}
+    # pred_real_bins, pred_real_hist = sim_pals(pred_real_input, rng)
+
+    # real_y_components = [real_y[2*i:2*i+2].tolist() for i in range(3)]
+    # real_y_input = {"num_events": 1_000_000,
+    #                 "bkg": 0.0,
+    #                 "components": real_y_components,
+    #                 "bin_size": 25,
+    #                 "time_gate": 15_000,
+    #                 "sigma_start": 68,
+    #                 "sigma_stop": 68,
+    #                 "offset": 2000}
+    # real_y_bins, real_y_hist = sim_pals(real_y_input, rng)
+
+
+    print("\nTwo-sample kstest, sim data")
+    print(kstest(sim_y_hist, pred_hist))
+    print(np.abs(pred_hist-sim_y_hist).max())
+
+    print("\nTwo-sample kstest, naive prediction against sim data")
+    print(kstest(sim_y_hist, naive_hist))
+    print(np.abs(naive_hist-sim_y_hist).max())
+
 
     plt.plot(pred_bins, pred_hist, label="predicted")
-    plt.plot(y_train_bins, y_train_hist, linestyle="dashed", label="true")
-    # plt.plot(pred_bins, pred_hist-y_train_hist, label="residual")
+    plt.plot(sim_y_bins, sim_y_hist, linestyle="dashed", label="true")
+    plt.title("Prediction versus true spectrum, randomly chosen simulation data (validation set)")
+
+
+
+    # plt.plot(naive_bins, naive_hist, label="naive")
+    # plt.plot(pred_bins, pred_hist-sim_y_hist, label="residual")
 
     # plt.plot(np.sort(pred_hist)/pred_hist.max(), label="predicted CDF")
-    # plt.plot(np.sort(y_train_hist)/y_train_hist.max(), linestyle="dashed", label="true CDF")
+    # plt.plot(np.sort(sim_y_hist)/sim_y_hist.max(), linestyle="dashed", label="true CDF")
 
     plt.legend()
     plt.xlabel("time")

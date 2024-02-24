@@ -412,30 +412,44 @@ def main(
     # ------------------------------------------------
     residual = y-pred
 
-    residual_normalised = residual/y.mean(dim=0, keepdim=True)
+    true_means = y.mean(dim=0)
+    residual_normalised = residual/y
 
-    # number of predicted values
-    n_features = residual.size(dim=1)
+    axes_mosaic = [
+        ["lifetime 1", "intensity 1", "lifetime 2", "intensity 2"],
+        ["lifetime 3", "intensity 3", "background", "background"]
+    ]
 
-    fig, axes = plt.subplots(
-        nrows = n_features//3 + n_features%3,
-        ncols = 3
-    )
+    name_to_idx = {
+        "lifetime 1":0,
+        "intensity 1":1,
+        "lifetime 2":2,
+        "intensity 2":3,
+        "lifetime 3":4,
+        "intensity 3":5,
+        "background":6
+    }
 
-    for i in range(n_features):
+    fig, ax_dict = plt.subplot_mosaic(axes_mosaic)
 
-        component_num = i//2 + 1
-        r2 = separate_r2[i]
+    # fig, axes = plt.subplots(
+    #     nrows = n_features//3 + n_features%3,
+    #     ncols = 3
+    # )
 
-        if i%2 == 0:
-            title = f"lifetime {component_num}\n r2 {r2:.2f}"
-        else:
-            title = f"intensity {component_num}\n r2 {r2:.2f}"
 
-        axis = axes.flatten()[i]
+    for ax_name, axis in ax_dict.items():
+
+        idx = name_to_idx[ax_name]
+        r2 = separate_r2[idx]
+
+
+        title = f"{ax_name}, true mean: {true_means[idx]:.4f}\n r^2 {r2:.2f}"
+
+
         # axis.hist(y[:,i], label="True")
         # axis.hist(pred[:,i], alpha=0.5, label="Predict")
-        axis.hist(residual_normalised[:,i], label="Normalized residual")
+        axis.hist(residual_normalised[:,idx])
         axis.set_title(title)
         axis.legend()
     
@@ -460,7 +474,7 @@ def main(
     # print(pred[1::2].sum())
 
     # test_prediction([one_pred,one_y])
-    test_prediction([(pred[i,:], y[i,:]) for i in range(len(pred))], _rng)
+    test_prediction([(pred[i,:][:-1], y[i,:][:-1]) for i in range(len(pred))], _rng)
 
 
 

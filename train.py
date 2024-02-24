@@ -826,16 +826,16 @@ if __name__ == "__main__":
 
     torch.manual_seed(1000)
 
-    # main(
-    #     data_folder="simdata_train01",
-    #     train_size=29500,
-    #     test_size=500,
-    #     epochs=3000,
-    #     tol=1e-18,
-    #     learning_rate=0.0001,
-    #     save_model=False,
-    #     monitor=True
-    # )
+    main(
+        data_folder="simdata_train01",
+        train_size=29500,
+        test_size=500,
+        epochs=3000,
+        tol=1e-18,
+        learning_rate=0.0001,
+        save_model=True,
+        monitor=True
+    )
 
 
     # main(
@@ -850,13 +850,13 @@ if __name__ == "__main__":
 
 
 
-    main(
-        data_folder="temp_file",
-        train_size=900,
-        test_size=100,
-        epochs=200,
-        tol=1e-18,
-        learning_rate=0.0001,
-        save_model=True,
-        monitor=True
-    )
+    # main(
+    #     data_folder="temp_file",
+    #     train_size=900,
+    #     test_size=100,
+    #     epochs=200,
+    #     tol=1e-18,
+    #     learning_rate=0.0001,
+    #     save_model=True,
+    #     monitor=True
+    # )
