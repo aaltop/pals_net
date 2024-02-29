@@ -2,7 +2,6 @@ import os
 import contextlib
 
 import json
-import pandas as pd
 import numpy as np
 
 
@@ -195,15 +194,13 @@ def get_components(metadata:dict, file_names:list, return_vals="all") -> list:
 
     return all_comps
 
-def read_data(folder_path, file_name, col_names=None) -> pd.DataFrame:
+def read_data(folder_path, file_name) -> np.ndarray:
 
-    if col_names is None:
-        col_names = ("time_ps","counts")
 
     file_path = os.path.join(folder_path, file_name)
     with open(file_path, "r", encoding="utf-8") as f:
-        data = pd.read_table(f,sep=" ", names=col_names, skiprows=1, index_col=False)
-
+        f.readline() # skip the metadata
+        data = np.loadtxt(f, dtype="float64")
 
 
     return data
@@ -241,7 +238,7 @@ def get_train_or_test(folder_path:str, file_names, col_names=None):
     data = [0]*len(file_names)
 
     for i,file_name in enumerate(file_names):
-        data[i] = read_data(folder_path, file_name, col_names)["counts"].to_numpy()
+        data[i] = read_data(folder_path, file_name)[:,1]
 
     return data
 
@@ -359,8 +356,8 @@ def test_metadata():
 def test_data():
     import matplotlib.pyplot as plt
 
-    data = read_data("simdata","simdata_00999.pals")
-    plt.plot(data["time_ps"], data["counts"])
+    data = read_data("simdata_train01","simdata_00999.pals")
+    plt.plot(data[:,0], data[:,1])
     plt.yscale("log")
     plt.show()
 
@@ -447,7 +444,7 @@ def test_get_input_prm():
 
 def main():
 
-    folder_path = os.path.join(os.getcwd(), "simdata")
+    folder_path = os.path.join(os.getcwd(), "simdata_train01")
     file_names = os.listdir(folder_path)
     # should only contain simdata files
     file_names.remove("metadata.txt")
@@ -460,4 +457,5 @@ def main():
 
 if __name__ == "__main__":
 
-    test_get_simdata()
+    test_data()
+    main()
