@@ -613,10 +613,11 @@ def random_input_prm(rng=None):
     # remaining "intensity", how much of the num_events are still unspecified
     remaining = 1-bkg
 
+    
     lifetimes = [
-        245+rng.uniform(low=-50,high=50),
-        400+rng.uniform(low=-80,high=80),
-        1500+rng.uniform(low=-300,high=300)
+        245+round(rng.uniform(low=-50,high=50)),
+        400+round(rng.uniform(low=-80,high=80)),
+        1500+round(rng.uniform(low=-300,high=300))
     ]
 
     
@@ -743,8 +744,8 @@ def main():
     print("Starting to write simulations...")
     start = time.time()
     write_many_simulations(
-        sims_to_write=900,
-        folder_name="temp_file",
+        sims_to_write=10000,
+        folder_name="temp_file_int",
         input_prm=None
     )
     stop = time.time()

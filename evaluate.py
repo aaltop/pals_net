@@ -141,7 +141,7 @@ def test_prediction(
     # set of hists from here as a more sensible alternative.
     rand_idx = np.arange(len(pred_and_true_comp))
     rng.shuffle(rand_idx)
-    rand_idx = [rand_idx[0]]
+    # rand_idx = [rand_idx[0]]
     for step,i in enumerate(rand_idx):
         one_line_print(f"Simulating spectra {step+1}/{len(rand_idx)}")
         comps = pred_and_true_comp[i]
@@ -451,7 +451,7 @@ def main(
         # axis.hist(pred[:,i], alpha=0.5, label="Predict")
         axis.hist(residual_normalised[:,idx])
         axis.set_title(title)
-        axis.legend()
+        # axis.legend()
     
     plt.suptitle("Histogram of predicted and true (normalized) component residuals")
     plt.show()
@@ -483,6 +483,7 @@ if __name__ == "__main__":
 
     main(
         data_folder="simdata_evaluate01",
+        # model_file="model20240224162712.pt",
         verbose=False
     )
 

@@ -826,16 +826,20 @@ if __name__ == "__main__":
 
     torch.manual_seed(1000)
 
-    main(
-        data_folder="simdata_train01",
-        train_size=29500,
-        test_size=500,
-        epochs=3000,
-        tol=1e-18,
-        learning_rate=0.0001,
-        save_model=True,
-        monitor=True
-    )
+    # TODO: might want to try using a better loss,
+    # right now it seems that the loss on the intensities and background
+    # is far less than on the lifetimes, yet the R2 is worse for the
+    # former
+    # main(
+    #     data_folder="simdata_train01",
+    #     train_size=39500,
+    #     test_size=500,
+    #     epochs=5000,
+    #     tol=1e-18,
+    #     learning_rate=0.0001,
+    #     save_model=False,
+    #     monitor=False
+    # )
 
 
     # main(
@@ -854,9 +858,20 @@ if __name__ == "__main__":
     #     data_folder="temp_file",
     #     train_size=900,
     #     test_size=100,
-    #     epochs=200,
+    #     epochs=3000,
     #     tol=1e-18,
     #     learning_rate=0.0001,
-    #     save_model=True,
-    #     monitor=True
+    #     save_model=False,
+    #     monitor=False
     # )
+
+    main(
+        data_folder="temp_file_int",
+        train_size=29500,
+        test_size=500,
+        epochs=1000,
+        tol=1e-18,
+        learning_rate=0.0001,
+        save_model=False,
+        monitor=True
+    )
