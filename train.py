@@ -55,7 +55,7 @@ from pytorch_helpers import (
 
 from active_plot import active_plotting
 
-from models import MLP, NeuralNet, Conv1, PALS_CNN
+from models import MLP, NeuralNet, Conv1, PALS_MSE
 
 _rng = np.random.default_rng()
 
@@ -553,7 +553,7 @@ def define_mse_model(
         (linear(output_size), False),
     ]
     
-    network = PALS_CNN(
+    network = PALS_MSE(
         layers,
         [normal_idx, softmax_idx]
     )
@@ -896,7 +896,7 @@ if __name__ == "__main__":
         epochs=300,
         tol=1e-18,
         learning_rate=0.0001,
-        save_model=True,
+        save_model=False,
         monitor=True
     )
 

@@ -142,10 +142,12 @@ class NeuralNet(torch.nn.Module, AbstractModel):
 
         return super().instantiation_kwargs
 
-class PALS_CNN(NeuralNet):
+class PALS_MSE(NeuralNet):
     '''
     At the end, computes a softmax on some of the input from the previous
     layer.
+
+    Used with Mean Squared Error.
     '''
 
 
@@ -173,16 +175,18 @@ class PALS_CNN(NeuralNet):
 
         # assume data points in rows
         self.softmax = torch.nn.Softmax(1)
-        self.normal_idx, self.softmax_idx = idx
+        self.idx = idx
 
     def forward(self, x):
 
         x = super().forward(x)
 
+        normal_idx, softmax_idx = self.idx
+
         # technically unnecessary, could just take the right amount
         # in sequence
-        normal = x[:,self.normal_idx]
-        softmaxxed = self.softmax(x[:,self.softmax_idx])
+        normal = x[:,normal_idx]
+        softmaxxed = self.softmax(x[:,softmax_idx])
         return normal, softmaxxed 
     
     @property
