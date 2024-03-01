@@ -290,6 +290,25 @@ class Model:
             logging.info(r2)
 
         return r2
+    
+    def logging_info(self):
+
+    
+
+        logging.info("\nUsed model:")
+        logging.info(self.inner_model)
+
+
+        logging.info(f"Using device {self.device}")
+        logging.info(f"Using dtype {self.dtype}")
+        
+
+        logging.info("\nUsed optimiser:")
+        logging.info(self.optim)
+        logging.info("\nUsed scheduler:")
+        logging.info(None if self.scheduler is None else pretty_print(self.scheduler))
+        logging.info("Used loss:")
+        logging.info(pretty_print(self._loss_func))
 
 def model_training(
         train_data,
@@ -512,6 +531,102 @@ def define_mlp(input_size:int, output_size:int, hidden_layer_sizes=None) -> MLP:
 
     return MLP(layer_sizes)
 
+def define_mse_model(
+    output_size,
+    normal_idx,
+    softmax_idx,
+    learning_rate=None,
+    device=None,
+    dtype=None
+):
+
+
+    linear = torch.nn.LazyLinear
+    conv = Conv1
+    pool = torch.nn.MaxPool1d
+
+    layers = [
+        (conv(1,3,5,5), True),
+        (conv(3,27,3,), True),
+        (torch.nn.Flatten(), False),
+        (linear(output_size*9), True),
+        (linear(output_size), False),
+    ]
+    
+    network = PALS_CNN(
+        layers,
+        [normal_idx, softmax_idx]
+    )
+
+
+    if learning_rate is None:
+        learning_rate = 0.0001
+
+    optim = torch.optim.Adam(network.parameters(), lr=learning_rate)
+    # TODO: check out CosineAnnealingWarmRestarts
+    sched = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optim,
+        factor=0.9,
+        patience=10,
+        verbose=True,
+        min_lr=0.0005
+    )
+    sched = None
+
+    loss_kwargs = {
+        "reduction":"sum"
+    }
+    loss = torch.nn.MSELoss(**loss_kwargs)
+
+    class PALSModel(Model):
+
+        def transform_true(self, true):
+            
+            return (true[:,normal_idx], true[:,softmax_idx])
+        
+    
+
+    model = PALSModel(
+        network,
+        optim,
+        loss,
+        scheduler=sched,
+        device=device,
+        dtype=dtype
+    )
+
+    model.logging_info()
+    # state_dict() doesn't seem to work for the losses, so need to do
+    # this
+    logging.info("Loss kwargs:")
+    logging.info(loss_kwargs)
+
+    return model
+
+
+def setup_logger(date_str):
+
+    log_folder = os.path.join(
+        os.getcwd(),
+        "logged_runs_pt"
+    )
+
+    if not (os.path.exists(log_folder)):
+        os.mkdir(log_folder)
+
+    file_name = "fit" + date_str + ".log"
+    log_file_path = os.path.join(log_folder, file_name)
+
+    handlers = logging.StreamHandler(sys.stdout), logging.FileHandler(log_file_path, encoding="utf-8")
+
+    logging.basicConfig(
+        style="{",
+        format="{message}",
+        level=logging.INFO,
+        handlers=handlers
+    )
+
+    return log_file_path
 
 
 def main(
@@ -584,7 +699,7 @@ def main(
         NOTE: There seems to be some issue at least with torch.float16, 
         not sure what. Best to use torch.float32.
     
-    ### input_preprocessing : boolean, default False.
+    ### input_preprocessing : boolean, default True.
         Whether to perform preprocessing on the input.
 
     ### monitor : boolean, default False
@@ -592,29 +707,8 @@ def main(
         
     '''
 
-    # setup logger
-    # -----------------
-    log_folder = os.path.join(
-        os.getcwd(),
-        "logged_runs_pt"
-    )
-
-    if not (os.path.exists(log_folder)):
-        os.mkdir(log_folder)
-
     date_str = helpers.date_time_str()
-    file_name = "fit" + date_str + ".log"
-    log_file_path = os.path.join(log_folder, file_name)
-
-    handlers = logging.StreamHandler(sys.stdout), logging.FileHandler(log_file_path, encoding="utf-8")
-
-    logging.basicConfig(
-        style="{",
-        format="{message}",
-        level=logging.INFO,
-        handlers=handlers
-    )
-    # =========================
+    log_file_path = setup_logger(date_str)
 
     # Get inputs and outputs, process
     # --------------------------------------
@@ -717,80 +811,17 @@ def main(
     # Define the model
     # --------------------------------------
 
-    input_size = x_train[0].shape[0]
     output_size = y_train[0].shape[0]
-
-    # network = define_mlp(input_size, output_size)
-
-    linear = torch.nn.LazyLinear
-    conv = Conv1
-    pool = torch.nn.MaxPool1d
-
-    layers = [
-        (conv(1,3,5,5), True),
-        (conv(3,27,3,), True),
-        (torch.nn.Flatten(), False),
-        (linear(output_size*9), True),
-        (linear(output_size), False),
-    ]
-    
-    # network = NeuralNet(layers)
     normal_idx = lifetime_idx
-    network = PALS_CNN(
-        layers,
-        [normal_idx, softmax_idx]
-    )
 
-
-    logging.info("\nUsed model:")
-    logging.info(network)
-
-    if learning_rate is None:
-        learning_rate = 0.005
-
-
-    logging.info(f"Using device {dev}")
-    logging.info(f"Using dtype {dtype}")
-
-    optim = torch.optim.Adam(network.parameters(), lr=learning_rate)
-    # TODO: check out CosineAnnealingWarmRestarts
-    sched = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optim,
-        factor=0.9,
-        patience=10,
-        verbose=True,
-        min_lr=0.0005
-    )
-    sched = None
-
-    loss_kwargs = {
-
-    }
-    loss = torch.nn.MSELoss(**loss_kwargs)
-
-    class PALSModel(Model):
-
-        def transform_true(self, true):
-            
-            return (true[:,normal_idx], true[:,softmax_idx])
-        
-    
-
-    model = PALSModel(
-        network,
-        optim,
-        torch.nn.MSELoss(),
-        scheduler=sched,
-        device=dev,
+    model = define_mse_model(
+        output_size, 
+        normal_idx, 
+        softmax_idx, 
+        learning_rate, 
+        device=dev, 
         dtype=dtype
     )
-
-    logging.info("\nUsed optimiser:")
-    logging.info(model.optim)
-    logging.info("\nUsed scheduler:")
-    logging.info(None if sched is None else pretty_print(sched))
-    logging.info("Used loss:")
-    logging.info(pretty_print(loss, loss_kwargs))
     # ======================================
 
     # Do training
@@ -817,7 +848,7 @@ def main(
         idx = [normal_idx, softmax_idx]
 
         whole_state_dict = {
-            "model_kwargs": network.instantiation_kwargs,
+            "model_kwargs": model.inner_model.instantiation_kwargs,
             "model_state_dict": best_model_state_dict,
             "normalisation": y_train_col_max,
             "device": dev,
@@ -865,7 +896,7 @@ if __name__ == "__main__":
         epochs=300,
         tol=1e-18,
         learning_rate=0.0001,
-        save_model=False,
+        save_model=True,
         monitor=True
     )
 
@@ -886,7 +917,7 @@ if __name__ == "__main__":
     #     data_folder="temp_file",
     #     train_size=900,
     #     test_size=100,
-    #     epochs=3000,
+    #     epochs=100,
     #     tol=1e-18,
     #     learning_rate=0.0001,
     #     save_model=False,
