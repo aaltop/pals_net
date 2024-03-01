@@ -95,18 +95,18 @@ class Model:
 
         self.inner_model = model
         self.optim = optim
-        self.loss_func = loss_func
+        self._loss_func = loss_func
         self.scheduler = scheduler
         self.device = "cpu" if device is None else device
         self.dtype = torch.float32 if dtype is None else dtype
 
         self.to_device(self.inner_model)
-        self.to_device(self.loss_func)
+        self.to_device(self._loss_func)
 
 
     def to_device(self, arg):
         '''
-        Moves <arg> to the used device and dtype.
+        Move <arg> to the used device and dtype.
         '''
 
         return arg.to(self.device, self.dtype)
@@ -114,17 +114,43 @@ class Model:
     
     def transform_true(self, true):
         '''
-        Transforms the true "output" <true> to match how <self.inner_model>
+        Transform the true "output" <true> to match how `self.get_predictions()`
         outputs the predictions.
         '''
 
         return true
     
+    def get_predictions(self, x):
+        '''
+        Given <x> as output from the prediction of `self.inner_model()`,
+        return only the predictions.
+        Mostly important for situations when a model outputs more
+        than just the predictions, such as when both means and variances
+        are output, and variances are not necessarily of interest in
+        all situations. As such, "predictions" would in this case refer
+        to the means, which would be the predictions of the true values,
+        while variances would be the "confidence" of those predictions.
+
+        Use self.inner_model(x) to get all parts of the prediction
+        of the inner_model.
+        '''
+
+        return x
+    
+    def loss_func(self, pred, true):
+        '''
+        Wrapper for the inner loss function, for handling unusual
+        prediction output from the inner model.
+        '''
+
+        return self._loss_func(pred, true)
+    
     def calculate_loss(self, pred, true):
         '''
-        Calculates the loss based on <pred>, the output from the neural
+        Calculate the loss based on <pred>, the output from the neural
         net, and <true>, the true outputs, and return the loss.
         '''
+
 
         if isinstance(pred, tuple):
             loss = None
@@ -204,15 +230,17 @@ class Model:
                 x = inputs[i*batch_size:(i+1)*batch_size,:]
                 y = self.transform_true(outputs[i*batch_size:(i+1)*batch_size,:])
 
-                pred = self.inner_model(x)
+                all_pred = self.inner_model(x)
 
                 # in case predictions are more than one tensor
-                if isinstance(pred, tuple):
-                    pred_and_true = zip(pred, y)
+                if isinstance(all_pred, tuple):
+                    pred_and_true = zip(all_pred, y)
                 else:
-                    pred_and_true = ((pred, y),)
+                    pred_and_true = ((all_pred, y),)
 
-                for pred_i, true_i in pred_and_true:
+                for all_pred_i, true_i in pred_and_true:
+
+                    pred_i = self.get_predictions(all_pred_i)
 
                     logging.info("prediction:")
                     logging.info(pred_i)
@@ -223,7 +251,7 @@ class Model:
                     logging.info("difference:")
                     logging.info((pred_i-true_i).abs())
 
-                    loss = self.loss_func(pred_i, true_i).item()
+                    loss = self.calculate_loss(all_pred_i, true_i).item()
                     logging.info("loss:")
                     logging.info(loss)
 
@@ -830,16 +858,16 @@ if __name__ == "__main__":
     # right now it seems that the loss on the intensities and background
     # is far less than on the lifetimes, yet the R2 is worse for the
     # former
-    # main(
-    #     data_folder="simdata_train01",
-    #     train_size=39500,
-    #     test_size=500,
-    #     epochs=5000,
-    #     tol=1e-18,
-    #     learning_rate=0.0001,
-    #     save_model=False,
-    #     monitor=False
-    # )
+    main(
+        data_folder="simdata_train01",
+        train_size=39500,
+        test_size=500,
+        epochs=300,
+        tol=1e-18,
+        learning_rate=0.0001,
+        save_model=False,
+        monitor=True
+    )
 
 
     # main(
@@ -865,13 +893,13 @@ if __name__ == "__main__":
     #     monitor=False
     # )
 
-    main(
-        data_folder="temp_file_int",
-        train_size=29500,
-        test_size=500,
-        epochs=1000,
-        tol=1e-18,
-        learning_rate=0.0001,
-        save_model=False,
-        monitor=True
-    )
+    # main(
+    #     data_folder="temp_file_int",
+    #     train_size=29500,
+    #     test_size=500,
+    #     epochs=1000,
+    #     tol=1e-18,
+    #     learning_rate=0.0001,
+    #     save_model=False,
+    #     monitor=True
+    # )
