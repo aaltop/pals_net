@@ -55,7 +55,7 @@ from pytorch_helpers import (
 
 from active_plot import active_plotting
 
-from models import MLP, NeuralNet, Conv1, PALS_MSE
+from models import MLP, NeuralNet, Conv1, PALS_MSE, PALS_GNLL
 
 _rng = np.random.default_rng()
 
@@ -533,8 +533,6 @@ def define_mlp(input_size:int, output_size:int, hidden_layer_sizes=None) -> MLP:
 
 def define_mse_model(
     output_size,
-    normal_idx,
-    softmax_idx,
     learning_rate=None,
     device=None,
     dtype=None
@@ -552,10 +550,18 @@ def define_mse_model(
         (linear(output_size*9), True),
         (linear(output_size), False),
     ]
+
+    # "components" contains lifetime-intensity pairs, "bkg" should
+    # scalar at the end of a row
+    lifetime_idx = list(range(0,output_size-1,2))
+    intensity_idx = list(range(1,output_size-1,2))
+    bkg_idx = output_size-1
+    softmax_idx = intensity_idx + [bkg_idx]
     
+    idx = [lifetime_idx, softmax_idx]
     network = PALS_MSE(
         layers,
-        [normal_idx, softmax_idx]
+        idx
     )
 
 
@@ -582,7 +588,7 @@ def define_mse_model(
 
         def transform_true(self, true):
             
-            return (true[:,normal_idx], true[:,softmax_idx])
+            return (true[:,lifetime_idx], true[:,softmax_idx])
         
     
 
@@ -601,7 +607,20 @@ def define_mse_model(
     logging.info("Loss kwargs:")
     logging.info(loss_kwargs)
 
-    return model
+    return model, idx
+
+def define_gnll_model(
+    output_size,
+    normal_idx,
+    softmax_idx,
+    var_idx,
+    learning_rate=None,
+    device=None,
+    dtype=None
+):
+
+
+    pass
 
 
 def setup_logger(date_str):
@@ -735,15 +754,8 @@ def main(
         "bkg"
     )
     x_train, y_train = get_simdata(data_path, train_files, inputs)
+    output_size = y_train[0].shape[0]
     x_test, y_test = get_simdata(data_path, test_files, inputs)
-
-    # "components" contains lifetime-intensity pairs, "bkg" should
-    # scalar at the end of a row
-    y_train_cols = y_train.shape[1]
-    lifetime_idx = list(range(0,y_train_cols-1,2))
-    intensity_idx = list(range(1,y_train_cols-1,2))
-    bkg_idx = y_train_cols-1
-    softmax_idx = intensity_idx + [bkg_idx]
 
     print("Fetched input and output...")
 
@@ -793,15 +805,6 @@ def main(
     # y_train = y_train[:,comp].reshape((-1,1))
     # y_test = y_test[:,comp].reshape((-1,1))
 
-    # normalise outputs based on train output (could be problematic
-    # if values in y_test are larger than in y_train, as the idea
-    # would be to normalise to one?)
-    y_train_col_max = y_train.amax(dim=0)
-    # don't normalise intensities or background
-    y_train_col_max[softmax_idx] = 1.0
-    y_train /= y_train_col_max
-    y_test /= y_train_col_max
-
     print("Processed output.\n")
 
     end = time.time()
@@ -811,18 +814,23 @@ def main(
     # Define the model
     # --------------------------------------
 
-    output_size = y_train[0].shape[0]
-    normal_idx = lifetime_idx
-
-    model = define_mse_model(
+    model, idx = define_mse_model(
         output_size, 
-        normal_idx, 
-        softmax_idx, 
         learning_rate, 
         device=dev, 
         dtype=dtype
     )
     # ======================================
+
+    softmax_idx = idx[1]
+    # normalise outputs based on train output (could be problematic
+    # if values in y_test are larger than in y_train, as the idea
+    # would be to normalise to one?)
+    y_train_col_max = y_train.amax(dim=0)
+    # don't normalise intensities or background
+    y_train_col_max[softmax_idx] = 1.0
+    y_train /= y_train_col_max
+    y_test /= y_train_col_max
 
     # Do training
     # --------------------------------------
@@ -845,7 +853,6 @@ def main(
 
     if save_model or (save_model is None):
 
-        idx = [normal_idx, softmax_idx]
 
         whole_state_dict = {
             "model_kwargs": model.inner_model.instantiation_kwargs,
@@ -896,7 +903,7 @@ if __name__ == "__main__":
         epochs=300,
         tol=1e-18,
         learning_rate=0.0001,
-        save_model=False,
+        save_model=True,
         monitor=True
     )
 

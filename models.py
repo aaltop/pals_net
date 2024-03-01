@@ -196,6 +196,48 @@ class PALS_MSE(NeuralNet):
         return instantiation_kwargs
     
 
+class PALS_GNLL(PALS_MSE):
+    '''
+    At the end, computes a softmax on some of the input from the previous
+    layer.
+
+    Used with Gaussian Negative Log-Likelihood Loss.
+    '''
+
+    def __init__(self, layers, idx):
+        '''
+        
+        Parameters
+        ----------
+
+        ### layers : list of (module, boolean)
+            The module should subclass torch.nn.Module, and the boolean
+            determines whether an activation function should be applied
+            to that layer.
+
+
+        ### idx : list of list of int
+            Element one contains a list of indices of values to not
+            compute softmax on, 
+            element two contains a list of indices
+            to compute softmax on, and element three contains a list
+            of indices of variances.
+
+        '''
+        super().__init__(layers, idx)
+
+    def forward(self, x):
+
+        x =  super().forward(x)
+    
+        normal_idx, softmax_idx, var_idx = self.idx
+
+        normal = x[:, normal_idx]
+        softmaxxed = self.softmax(x[:, softmax_idx])
+        var = x[:, var_idx]
+        
+        return normal, softmaxxed, var
+
 if __name__ == "__main__":
 
     layers = [5,3,2]
