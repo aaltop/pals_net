@@ -177,9 +177,10 @@ class PALS_MSE(NeuralNet):
         self.softmax = torch.nn.Softmax(1)
         self.idx = idx
 
-    def forward(self, x):
-
-        x = super().forward(x)
+    def process_output(self, x):
+        '''
+        For processing the output from the last layer.
+        '''
 
         normal_idx, softmax_idx = self.idx
 
@@ -188,6 +189,12 @@ class PALS_MSE(NeuralNet):
         normal = x[:,normal_idx]
         softmaxxed = self.softmax(x[:,softmax_idx])
         return normal, softmaxxed 
+
+    def forward(self, x):
+
+        x = super().forward(x)
+
+        return self.process_output(x)
     
     @property
     def instantiation_kwargs(self):
@@ -199,7 +206,7 @@ class PALS_MSE(NeuralNet):
 class PALS_GNLL(PALS_MSE):
     '''
     At the end, computes a softmax on some of the input from the previous
-    layer.
+    layer. Also returns variance for predictions.
 
     Used with Gaussian Negative Log-Likelihood Loss.
     '''
@@ -226,17 +233,38 @@ class PALS_GNLL(PALS_MSE):
         '''
         super().__init__(layers, idx)
 
-    def forward(self, x):
 
-        x =  super().forward(x)
-    
-        normal_idx, softmax_idx, var_idx = self.idx
+    def process_output(self, x):
+
+        normal_idx, normal_var_idx, softmax_idx, softmax_var_idx = self.idx
+
+        softplus = torch.nn.Softplus(beta=10)
+        A = 2.3
 
         normal = x[:, normal_idx]
+        normal_var = A*softplus(x[:, normal_var_idx])
         softmaxxed = self.softmax(x[:, softmax_idx])
-        var = x[:, var_idx]
+        softmaxxed_var = A*softplus(x[:, softmax_var_idx])
         
-        return normal, softmaxxed, var
+        return [normal, normal_var], [softmaxxed, softmaxxed_var]
+        
+
+    def forward(self, x):
+        '''
+        Returns
+        -------
+
+        ### ([normal, normal_var], [softmaxxed, softmaxxed_var])
+
+        - normal: tensor of non-softmaxxed values.
+        - normal_var: tensor of variances for <normal>.
+        - softmaxxed: tensor of softmaxxed values.
+        - softmaxxed_var: tensor of variances for <softmaxxed>.
+        
+        '''
+
+        return super().forward(x)
+
 
 if __name__ == "__main__":
 

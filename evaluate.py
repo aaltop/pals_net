@@ -36,7 +36,7 @@ from helpers import one_line_print
 
 
 from pytorch_helpers import r2_score
-from models import MLP, NeuralNet, PALS_MSE
+from models import MLP, NeuralNet, PALS_MSE, PALS_GNLL
 from pytorch_helpers import convert_to_tensor
 
 _rng = np.random.default_rng()
@@ -255,8 +255,146 @@ def test_prediction(
     plt.title(f"Kolmogorov-Smirnov test p-values histogram, rejected: {rejects}")
     plt.show()
 
+def load_generic_model(
+    network:torch.nn.Module,
+    train_dict
+):
+
+        # Ready the model
+    # ------------------------------------------------
+
+    # older train_dicts didn't have these, so use get with the default
+    # specified
+    dev = train_dict.get("device", "cpu")
+    dtype = train_dict.get("dtype", torch.float32)
 
 
+    # NOTE: this assumes state_dict contains the model_layers,
+    # model_state_dict and the normalisation originally used for
+    # the output, as well as used device and data type
+
+    # for older train_dict contents
+    if "model_layers" in train_dict:
+        model = MLP(train_dict["model_layers"]).to(dev, dtype)
+    else:
+        model = network(**train_dict["model_kwargs"]).to(dev, dtype)
+
+    model.load_state_dict(train_dict["model_state_dict"])
+    model.eval()
+
+    return model
+
+
+def evaluate_model(
+    model,
+    train_dict,
+    x,
+    y
+):
+
+
+    dev = train_dict.get("device", "cpu")
+    dtype = train_dict.get("dtype", torch.float32)
+
+    # ================================================
+
+    pred = model(x.to(device=dev, dtype=dtype))
+    # if output prediction comes as multiple tensors in tuple. Map columns in
+    # the prediction tensors to how they are in the original, true output "y"
+    if "idx" in train_dict:
+        cols_n = sum(map(len, train_dict["idx"]))
+        col_index = []
+        for idx_list in train_dict["idx"]:
+            col_index += idx_list
+
+        # sort into correct index order
+        pred_to_y_conversion = [val[0] for val in sorted(enumerate(col_index), key=lambda x: x[1])]
+        # use sorted indices to get the correct order
+        pred = torch.column_stack(pred)[:, pred_to_y_conversion]
+
+
+    pred = pred.detach()*train_dict["normalisation"]
+    pred = pred.to("cpu")
+
+
+
+    print("\nValidation set r-squared:")
+    separate_r2 = r2_score(pred, y)
+    print("Separate:")
+    print(separate_r2)
+    print("Mean:")
+    print(separate_r2.mean())
+
+    return pred, separate_r2
+
+
+def evaluate_gnll_model(
+    model,
+    train_dict,
+    x,
+    y
+):
+
+
+    dev = train_dict.get("device", "cpu")
+    dtype = train_dict.get("dtype", torch.float32)
+
+    # ================================================
+
+    print(model)
+    pred = model(x.to(device=dev, dtype=dtype))
+
+    (normal,normal_var),(softmax, softmax_var) = pred
+    # if output prediction comes as multiple tensors in tuple. Map columns in
+    # the prediction tensors to how they are in the original, true output "y"
+    if "idx" in train_dict:
+        cols_n = sum(map(len, train_dict["idx"]))
+        col_index = []
+        for idx_list in train_dict["idx"]:
+            col_index += idx_list
+
+        # sort into correct index order
+        pred_to_y_conversion = [val[0] for val in sorted(enumerate(col_index), key=lambda x: x[1])]
+        # use sorted indices to get the correct order
+        pred = torch.column_stack((normal, softmax))[:, pred_to_y_conversion]
+        pred_var = torch.column_stack((normal_var, softmax_var))[:, pred_to_y_conversion]
+
+
+    pred = pred.detach()*train_dict["normalisation"]
+    pred = pred.to("cpu")
+
+    # To get actual variance, need to multiply by the square of 
+    # the normalisation
+    pred_var = pred_var.detach()*(train_dict["normalisation"]**2)
+    pred_var = pred_var.to("cpu")
+
+
+
+    print("\nValidation set r-squared:")
+    separate_r2 = r2_score(pred, y)
+    print("Separate:")
+    print(separate_r2)
+    print("Mean:")
+    print(separate_r2.mean())
+
+    # plot each of the true values and the predicted ones,
+    # together with 2*std confidence intervals. Sort in ascending order
+    # by the true values
+    for i in range(pred.shape[1]):
+        true, true_sort = torch.sort(y[:,i])
+        predicted = pred[:, i][true_sort]
+        std2 = (2*pred_var[:,i]**0.5)[true_sort]
+
+        num_val = np.arange(len(std2))
+
+        print(torch.mean(std2))
+        plt.plot(predicted, label="predicted")
+        plt.plot(true, label="true")
+        plt.fill_between(num_val, predicted-std2, predicted+std2, alpha=0.5)
+        plt.legend()
+        plt.show()
+
+    return (pred, pred_var), separate_r2
 
 def main(
         data_folder,
@@ -362,53 +500,10 @@ def main(
 
     # older train_dicts didn't have these, so use get with the default
     # specified
-    dev = train_dict.get("device", "cpu")
-    dtype = train_dict.get("dtype", torch.float32)
-
-
-    # NOTE: this assumes state_dict contains the model_layers,
-    # model_state_dict and the normalisation originally used for
-    # the output, as well as used device and data type
-
-    network = NeuralNet
-    network = PALS_MSE
-    # for older train_dict contents
-    if "model_layers" in train_dict:
-        model = MLP(train_dict["model_layers"]).to(dev, dtype)
-    else:
-        model = network(**train_dict["model_kwargs"]).to(dev, dtype)
-
-    model.load_state_dict(train_dict["model_state_dict"])
-    model.eval()
-
-    # ================================================
-
-    pred = model(x.to(device=dev, dtype=dtype))
-    # if output prediction comes as multiple tensors in tuple. Map columns in
-    # the prediction tensors to how they are in the original, true output "y"
-    if "idx" in train_dict:
-        cols_n = sum(map(len, train_dict["idx"]))
-        col_index = []
-        for idx_list in train_dict["idx"]:
-            col_index += idx_list
-
-        # sort into correct index order
-        pred_to_y_conversion = [val[0] for val in sorted(enumerate(col_index), key=lambda x: x[1])]
-        # use sorted indices to get the correct order
-        pred = torch.column_stack(pred)[:, pred_to_y_conversion]
-
-
-    pred = pred.detach()*train_dict["normalisation"]
-    pred = pred.to("cpu")
-
-
-
-    print("\nValidation set r-squared:")
-    separate_r2 = r2_score(pred, y)
-    print("Separate:")
-    print(separate_r2)
-    print("Mean:")
-    print(separate_r2.mean())
+    
+    model = load_generic_model(PALS_MSE, train_dict)
+    model = load_generic_model(PALS_GNLL, train_dict)
+    (pred, pred_var), separate_r2 = evaluate_gnll_model(model, train_dict, x, y)
 
     # PLot histograms of the distribution of residuals
     # ------------------------------------------------
@@ -466,6 +561,8 @@ def main(
     one_pred = pred[random_index,:]
     one_y = y[random_index,:]
 
+
+    raise SystemExit
     # print(pred)
     # # so obviously the intensities are not currently constrained to
     # # be anything specifically, as my idea was originally that I'd like
@@ -485,7 +582,7 @@ if __name__ == "__main__":
 
     main(
         data_folder="simdata_evaluate01",
-        # model_file="model20240224162712.pt",
+        # model_file="model20240229131017.pt",
         verbose=False
     )
 

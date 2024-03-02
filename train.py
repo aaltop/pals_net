@@ -232,15 +232,18 @@ class Model:
 
                 all_pred = self.inner_model(x)
 
+                loss = self.calculate_loss(all_pred, y).item()
+                logging.info("loss:")
+                logging.info(loss)
+                epoch_loss += loss
+
                 # in case predictions are more than one tensor
                 if isinstance(all_pred, tuple):
-                    pred_and_true = zip(all_pred, y)
+                    pred_and_true = zip(self.get_predictions(all_pred), y)
                 else:
-                    pred_and_true = ((all_pred, y),)
+                    pred_and_true = ((self.get_predictions(all_pred), y),)
 
-                for all_pred_i, true_i in pred_and_true:
-
-                    pred_i = self.get_predictions(all_pred_i)
+                for pred_i, true_i in pred_and_true:
 
                     logging.info("prediction:")
                     logging.info(pred_i)
@@ -251,14 +254,10 @@ class Model:
                     logging.info("difference:")
                     logging.info((pred_i-true_i).abs())
 
-                    loss = self.calculate_loss(all_pred_i, true_i).item()
-                    logging.info("loss:")
-                    logging.info(loss)
 
                     logging.info("R2:")
                     logging.info(r2_score(pred_i,true_i).mean().item())
 
-                    epoch_loss += loss
 
             logging.info("mean loss:")
             logging.info(epoch_loss/num_batches)
@@ -278,7 +277,7 @@ class Model:
         self.inner_model.eval()
         with torch.no_grad():
             
-            pred = self.inner_model(inputs)
+            pred = self.get_predictions(self.inner_model(inputs))
             if isinstance(pred, tuple):
                 matches = zip(pred, self.transform_true(outputs))
                 r2 = torch.cat([r2_score(pred_i, true_i) for pred_i, true_i in matches]).mean().item()
@@ -372,7 +371,8 @@ def model_training(
     # Do optimisation
     #-------------------------------------
 
-    losses = [0]*epochs
+    # losses = [0]*epochs
+    losses = np.zeros(epochs, float)
     logging.info(f"\nEpochs: {epochs}")
     logging.info(f"tolerance: {tolerance}")
     previous_loss = np.inf
@@ -416,9 +416,11 @@ def model_training(
                 r2_geq_zero = np.nonzero(test_y >= 0)
                 r2_x = x[r2_geq_zero]
 
+                loss_to_plot = losses[:epoch]
+                negative_losses = np.any(loss_to_plot < 0)
                 to_plot = [
                     [
-                        (range(epoch),losses[:epoch])
+                        (range(epoch),loss_to_plot)
                     ],
                     [
                         (r2_x,test_y[r2_geq_zero]),
@@ -434,7 +436,9 @@ def model_training(
                             axs[i].plot(*to_plot[i][j])
                             axs[i].grid(visible=True)
 
-                    axs[0].set_yscale("log")
+
+                    if not negative_losses:
+                        axs[0].set_yscale("log")
                     plt.show(block=False)
                     monitoring_initialized = True
 
@@ -470,7 +474,8 @@ def plot_training_results(losses, r2_scores):
     ax[0].plot(np.arange(len(losses))+1,losses)
     ax[0].set_xlabel("epoch")
     ax[0].set_ylabel("epoch loss")
-    ax[0].set_yscale("log")
+    if not np.any(losses < 0):
+        ax[0].set_yscale("log")
 
 
     # first column has epoch, other two have train and test r2
@@ -553,6 +558,8 @@ def define_mse_model(
 
     # "components" contains lifetime-intensity pairs, "bkg" should
     # scalar at the end of a row
+    # these should be the values that correspond to those in the
+    # "true" output
     lifetime_idx = list(range(0,output_size-1,2))
     intensity_idx = list(range(1,output_size-1,2))
     bkg_idx = output_size-1
@@ -580,7 +587,6 @@ def define_mse_model(
     sched = None
 
     loss_kwargs = {
-        "reduction":"sum"
     }
     loss = torch.nn.MSELoss(**loss_kwargs)
 
@@ -607,20 +613,114 @@ def define_mse_model(
     logging.info("Loss kwargs:")
     logging.info(loss_kwargs)
 
+    # return also the index correspondence for finding the correct
+    # corresponendences from the true output
     return model, idx
 
 def define_gnll_model(
-    output_size,
-    normal_idx,
-    softmax_idx,
-    var_idx,
+    true_size,
     learning_rate=None,
     device=None,
     dtype=None
 ):
+    '''
+    Parameters
+    ----------
+
+    ### true_size
+        size (number) of the "true" values, values to be predicted.
+    '''
 
 
-    pass
+    linear = torch.nn.LazyLinear
+    conv = Conv1
+    pool = torch.nn.MaxPool1d
+
+    output_size = 2*true_size
+    layers = [
+        (conv(1,3,5,5), True),
+        (conv(3,27,3,), True),
+        (torch.nn.Flatten(), False),
+        (linear(output_size*9), True),
+        (linear(output_size), False),
+    ]
+
+    # "components" contains lifetime-intensity pairs, "bkg" should
+    # scalar at the end of a row
+    # these should be the values that correspond to those in the
+    # "true" output
+    lifetime_idx = list(range(0,true_size-1,2))
+    intensity_idx = list(range(1,true_size-1,2))
+    bkg_idx = true_size-1
+    softmax_idx = intensity_idx + [bkg_idx]
+    # variance does not have correspondence in the "true" output,
+    # but should the same size as the true output
+    lifetime_var_idx = list(range(true_size, output_size-1, 2))
+    intensity_var_idx = list(range(true_size+1, output_size-1, 2))
+    bkg_var_idx = output_size-1
+    softmax_var_idx = intensity_var_idx + [bkg_var_idx]
+    
+    network = PALS_GNLL(
+        layers,
+        [lifetime_idx, lifetime_var_idx, softmax_idx, softmax_var_idx]
+    )
+
+
+    if learning_rate is None:
+        learning_rate = 0.0001
+
+    optim = torch.optim.Adam(network.parameters(), lr=learning_rate)
+    # TODO: check out CosineAnnealingWarmRestarts
+    sched = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optim,
+        factor=0.9,
+        patience=10,
+        verbose=True,
+        min_lr=0.0001
+    )
+    sched = None
+
+    loss_kwargs = {
+    }
+    loss = torch.nn.GaussianNLLLoss(**loss_kwargs)
+
+    class PALSModel(Model):
+
+        def transform_true(self, true):
+            
+            return (true[:,lifetime_idx], true[:,softmax_idx])
+        
+        def loss_func(self, pred, true):
+            
+            # assume pred is (mean, var)
+            _input, var = pred
+            return self._loss_func(_input, true, var)
+        
+        def get_predictions(self, x):
+            
+            (normal, _), (softmaxxed, _) = x
+            return (normal, softmaxxed)
+        
+    
+
+    model = PALSModel(
+        network,
+        optim,
+        loss,
+        scheduler=sched,
+        device=device,
+        dtype=dtype
+    )
+
+    model.logging_info()
+    # state_dict() doesn't seem to work for the losses, so need to do
+    # this
+    logging.info("Loss kwargs:")
+    logging.info(loss_kwargs)
+
+    # return also the index correspondence for finding the correct
+    # corresponendences from the true output
+    return model, [lifetime_idx, softmax_idx]
 
 
 def setup_logger(date_str):
@@ -814,10 +914,17 @@ def main(
     # Define the model
     # --------------------------------------
 
-    model, idx = define_mse_model(
-        output_size, 
-        learning_rate, 
-        device=dev, 
+    # model, idx = define_mse_model(
+    #     output_size, 
+    #     learning_rate, 
+    #     device=dev, 
+    #     dtype=dtype
+    # )
+
+    model, idx = define_gnll_model(
+        output_size,
+        learning_rate,
+        device=dev,
         dtype=dtype
     )
     # ======================================
@@ -900,8 +1007,8 @@ if __name__ == "__main__":
         data_folder="simdata_train01",
         train_size=39500,
         test_size=500,
-        epochs=300,
-        tol=1e-18,
+        epochs=3000,
+        tol=float("nan"),
         learning_rate=0.0001,
         save_model=True,
         monitor=True
@@ -924,11 +1031,11 @@ if __name__ == "__main__":
     #     data_folder="temp_file",
     #     train_size=900,
     #     test_size=100,
-    #     epochs=100,
-    #     tol=1e-18,
+    #     epochs=3000,
+    #     tol=float("nan"),
     #     learning_rate=0.0001,
     #     save_model=False,
-    #     monitor=False
+    #     monitor=True
     # )
 
     # main(
