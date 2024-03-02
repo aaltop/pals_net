@@ -698,8 +698,7 @@ def define_gnll_model(
         
         def get_predictions(self, x):
             
-            (normal, _), (softmaxxed, _) = x
-            return (normal, softmaxxed)
+            return (x.normal.mean, x.softmax.mean)
         
     
 
@@ -1010,7 +1009,7 @@ if __name__ == "__main__":
         epochs=3000,
         tol=float("nan"),
         learning_rate=0.0001,
-        save_model=True,
+        save_model=False,
         monitor=True
     )
 
@@ -1031,7 +1030,7 @@ if __name__ == "__main__":
     #     data_folder="temp_file",
     #     train_size=900,
     #     test_size=100,
-    #     epochs=3000,
+    #     epochs=300,
     #     tol=float("nan"),
     #     learning_rate=0.0001,
     #     save_model=False,

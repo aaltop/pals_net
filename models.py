@@ -1,4 +1,5 @@
 import abc
+from collections import namedtuple
 
 from pytorch_helpers import pretty_print, conv_expand, conv_compress
 
@@ -142,6 +143,7 @@ class NeuralNet(torch.nn.Module, AbstractModel):
 
         return super().instantiation_kwargs
 
+PALS_output = namedtuple("PALS_MSE_output", ("normal", "softmax"))
 class PALS_MSE(NeuralNet):
     '''
     At the end, computes a softmax on some of the input from the previous
@@ -188,7 +190,7 @@ class PALS_MSE(NeuralNet):
         # in sequence
         normal = x[:,normal_idx]
         softmaxxed = self.softmax(x[:,softmax_idx])
-        return normal, softmaxxed 
+        return PALS_output(normal, softmaxxed)
 
     def forward(self, x):
 
@@ -201,8 +203,8 @@ class PALS_MSE(NeuralNet):
 
         instantiation_kwargs = super().instantiation_kwargs
         return instantiation_kwargs
-    
 
+MeanAndVar = namedtuple("MeanAndVar", ("mean", "var"))
 class PALS_GNLL(PALS_MSE):
     '''
     At the end, computes a softmax on some of the input from the previous
@@ -245,8 +247,13 @@ class PALS_GNLL(PALS_MSE):
         normal_var = A*softplus(x[:, normal_var_idx])
         softmaxxed = self.softmax(x[:, softmax_idx])
         softmaxxed_var = A*softplus(x[:, softmax_var_idx])
+
+        output = PALS_output(
+            MeanAndVar(normal, normal_var), 
+            MeanAndVar(softmaxxed, softmaxxed_var)
+        )
         
-        return [normal, normal_var], [softmaxxed, softmaxxed_var]
+        return output
         
 
     def forward(self, x):
@@ -254,12 +261,9 @@ class PALS_GNLL(PALS_MSE):
         Returns
         -------
 
-        ### ([normal, normal_var], [softmaxxed, softmaxxed_var])
-
-        - normal: tensor of non-softmaxxed values.
-        - normal_var: tensor of variances for <normal>.
-        - softmaxxed: tensor of softmaxxed values.
-        - softmaxxed_var: tensor of variances for <softmaxxed>.
+        ### output : PALS_output(MeanAndVar, MeanAndVar)
+            Contains the normal and softmax outputs, both of
+            which contain the predicted mean and predicted variance.
         
         '''
 
