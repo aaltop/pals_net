@@ -143,7 +143,7 @@ class NeuralNet(torch.nn.Module, AbstractModel):
 
         return super().instantiation_kwargs
 
-PALS_output = namedtuple("PALS_MSE_output", ("normal", "softmax"))
+PALS_output = namedtuple("PALS_output", ("normal", "softmax"))
 class PALS_MSE(NeuralNet):
     '''
     At the end, computes a softmax on some of the input from the previous

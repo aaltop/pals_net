@@ -852,9 +852,9 @@ def main(
         "components",
         "bkg"
     )
-    x_train, y_train = get_simdata(data_path, train_files, inputs)
+    x_train, y_train, comp_names = get_simdata(data_path, train_files, inputs)
     output_size = y_train[0].shape[0]
-    x_test, y_test = get_simdata(data_path, test_files, inputs)
+    x_test, y_test, _ = get_simdata(data_path, test_files, inputs)
 
     print("Fetched input and output...")
 

@@ -245,7 +245,8 @@ def get_train_or_test(folder_path:str, file_names, col_names=None):
 def get_simdata(folder_path:str, file_names:list[str], inputs):
     '''
     Returns both the simulation counts and the inputs used for the
-    simulation, both of which should be in one file. The inputs
+    simulation, both of which should be in one file. Also returns
+    names for components based on the first input values. The inputs
     (simulation input parameters) should be on the first line of the
     file as a (json deserialisable) dictionary, and the simulation
     time and counts make up the rest of the file, in two columns.
@@ -276,12 +277,18 @@ def get_simdata(folder_path:str, file_names:list[str], inputs):
     ### components : numpy array
         The inputs used in simulating the spectra, in the order specified
         by <inputs>.
+
+    ### comp_names : tuple of strings
+        The names of the components (simulation inputs), in order.
+        Essentially column names for <components>.
     '''
 
     components = [0]*len(file_names)
     counts = [0]*len(file_names)
 
-
+    # use "parts" to give the different components by name, in order
+    comp_names = []
+    names_empty = True
     # change to data folder so don't have to create the path
     # strings for every data file
     # not thread-safe
@@ -315,16 +322,27 @@ def get_simdata(folder_path:str, file_names:list[str], inputs):
                     if isinstance(_input, list):
                         for sub_list in _input:
                             comps += sub_list
+
+                        if names_empty:
+                            for j in range(len(_input)):
+
+                                comp_names.extend([f"lifetime {j+1}", f"intensity {j+1}"])
+
+
                     else:
                         comps.append(_input)
+
+                        if names_empty:
+                            comp_names.append(key)
                     
+                names_empty = False
                 components[i] = comps
 
                 # get the counts
                 count_col = np.loadtxt(f, dtype="float64", usecols=1)
                 counts[i] = count_col
 
-        return counts, np.array(components)
+        return counts, np.array(components), tuple(comp_names)
 
 
 def get_input_prm(folder_path, file_names:list[str]):
@@ -418,11 +436,12 @@ def test_get_simdata():
         "components",
         "bkg",
     )
-    train_counts, train_components = get_simdata(folder_path, train_files, inputs)
-    # test_counts, test_components = get_simdata(folder_path, test_files)
+    train_counts, train_components, comp_names = get_simdata(folder_path, train_files, inputs)
+    # test_counts, test_components, comp_names = get_simdata(folder_path, test_files)
 
     print(f"Took {time.time()-start} seconds.")
 
+    print(comp_names)
     print(train_components.shape)
     print(len(train_counts))
     print(train_components)
@@ -457,5 +476,4 @@ def main():
 
 if __name__ == "__main__":
 
-    test_data()
-    main()
+    test_get_simdata()

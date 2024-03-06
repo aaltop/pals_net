@@ -332,7 +332,8 @@ def evaluate_gnll_model(
     model,
     train_dict,
     x,
-    y
+    y,
+    comp_names
 ):
 
 
@@ -341,7 +342,6 @@ def evaluate_gnll_model(
 
     # ================================================
 
-    print(model)
     pred = model(x.to(device=dev, dtype=dtype))
 
     (normal,normal_var),(softmax, softmax_var) = pred
@@ -380,18 +380,18 @@ def evaluate_gnll_model(
     # plot each of the true values and the predicted ones,
     # together with 2*std confidence intervals. Sort in ascending order
     # by the true values
-    for i in range(pred.shape[1]):
+    for i,name in enumerate(comp_names):
         true, true_sort = torch.sort(y[:,i])
         predicted = pred[:, i][true_sort]
         std2 = (2*pred_var[:,i]**0.5)[true_sort]
 
         num_val = np.arange(len(std2))
 
-        print(torch.mean(std2))
         plt.plot(predicted, label="predicted")
         plt.plot(true, label="true")
-        plt.fill_between(num_val, predicted-std2, predicted+std2, alpha=0.5)
+        plt.fill_between(num_val, predicted-std2, predicted+std2, alpha=0.5, label="2*std prediction interval")
         plt.legend()
+        plt.title(f"True and predicted values for {name}\nMean of two standard deviations: {torch.mean(std2).item():.3f}")
         plt.show()
 
     return (pred, pred_var), separate_r2
@@ -475,7 +475,7 @@ def main(
     )
 
     inputs = train_dict.get("sim_inputs", ("components"))
-    x,y = get_simdata(folder_path,validation_files, inputs)
+    x, y, comp_names = get_simdata(folder_path,validation_files, inputs)
 
     # this first is for older train_dicts, which did not have the
     # processing arguments saved
@@ -503,7 +503,7 @@ def main(
     
     model = load_generic_model(PALS_MSE, train_dict)
     model = load_generic_model(PALS_GNLL, train_dict)
-    (pred, pred_var), separate_r2 = evaluate_gnll_model(model, train_dict, x, y)
+    (pred, pred_var), separate_r2 = evaluate_gnll_model(model, train_dict, x, y, comp_names)
 
     # PLot histograms of the distribution of residuals
     # ------------------------------------------------
