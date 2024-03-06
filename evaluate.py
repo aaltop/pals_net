@@ -34,6 +34,8 @@ from processing import (
 
 from helpers import one_line_print
 
+from plotting_utility import PlotSaver
+
 
 from pytorch_helpers import r2_score
 from models import MLP, NeuralNet, PALS_MSE, PALS_GNLL
@@ -333,7 +335,8 @@ def evaluate_gnll_model(
     train_dict,
     x,
     y,
-    comp_names
+    comp_names,
+    plot_saver:PlotSaver
 ):
 
 
@@ -387,12 +390,16 @@ def evaluate_gnll_model(
 
         num_val = np.arange(len(std2))
 
+        fig = plt.figure(figsize=(19.2, 10.8))
         plt.plot(predicted, label="predicted")
         plt.plot(true, label="true")
         plt.fill_between(num_val, predicted-std2, predicted+std2, alpha=0.5, label="2*std prediction interval")
         plt.legend()
         plt.title(f"True and predicted values for {name}\nMean of two standard deviations: {torch.mean(std2).item():.3f}")
-        plt.show()
+        plt.xlabel("number of data file")
+        plt.ylabel("Value of component")
+        plot_saver.save(name, fig)
+        plt.close(fig)
 
     return (pred, pred_var), separate_r2
 
@@ -498,12 +505,11 @@ def main(
     # Ready the model
     # ------------------------------------------------
 
-    # older train_dicts didn't have these, so use get with the default
-    # specified
+    plot_saver = PlotSaver()
     
     model = load_generic_model(PALS_MSE, train_dict)
     model = load_generic_model(PALS_GNLL, train_dict)
-    (pred, pred_var), separate_r2 = evaluate_gnll_model(model, train_dict, x, y, comp_names)
+    (pred, pred_var), separate_r2 = evaluate_gnll_model(model, train_dict, x, y, comp_names, plot_saver)
 
     # PLot histograms of the distribution of residuals
     # ------------------------------------------------
@@ -551,6 +557,7 @@ def main(
         # axis.legend()
     
     plt.suptitle("Histogram of predicted and true (normalized) component residuals")
+    plot_saver.save("r2_histograms", fig)
     plt.show()
     # ================================================
     
