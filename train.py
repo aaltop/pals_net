@@ -199,7 +199,8 @@ class Model:
         average_loss = epoch_loss/num_batches
 
         if not (self.scheduler is None):
-            self.scheduler.step(average_loss)
+            r2 = self.r2_evaluate(inputs, outputs)
+            self.scheduler.step(r2)
 
         return average_loss
     
@@ -636,12 +637,17 @@ def define_gnll_model(
     conv = Conv1
     pool = torch.nn.MaxPool1d
 
+    # TODO: test maxpool?
     output_size = 2*true_size
     layers = [
-        (conv(1,3,5,5), True),
-        (conv(3,27,3,), True),
+        (conv(1,output_size,5,5), True),
+        (pool(4,4), False),
+        (conv(output_size,output_size*3,3,), True),
+        # (conv(3,9,3,), True),
+        # (conv(9,27,3), True),
         (torch.nn.Flatten(), False),
         (linear(output_size*9), True),
+        # (linear(output_size*3), True),
         (linear(output_size), False),
     ]
 
@@ -673,12 +679,15 @@ def define_gnll_model(
     # TODO: check out CosineAnnealingWarmRestarts
     sched = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optim,
-        factor=0.9,
-        patience=10,
+        factor=0.5,
+        patience=100,
         verbose=True,
-        min_lr=0.0001
+        threshold=0.01,
+        mode="max",
+        threshold_mode="abs",
+        min_lr=learning_rate*0.5
     )
-    sched = None
+    # sched = None
 
     loss_kwargs = {
     }
@@ -1006,9 +1015,9 @@ if __name__ == "__main__":
         data_folder="simdata_train01",
         train_size=39500,
         test_size=500,
-        epochs=3000,
+        epochs=1000,
         tol=float("nan"),
-        learning_rate=0.0001,
+        learning_rate=0.001,
         save_model=False,
         monitor=True
     )
@@ -1030,11 +1039,11 @@ if __name__ == "__main__":
     #     data_folder="temp_file",
     #     train_size=900,
     #     test_size=100,
-    #     epochs=300,
+    #     epochs=2000,
     #     tol=float("nan"),
     #     learning_rate=0.0001,
     #     save_model=False,
-    #     monitor=True
+    #     monitor=False
     # )
 
     # main(
