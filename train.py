@@ -463,7 +463,7 @@ def model_training(
             # be alright, would have to test though.
 
             # continuous plot of training process
-            if monitor and epoch > 0 and 0 == epoch%100:
+            if monitor and epoch > 0 and 0 == epoch%10:
                 x,train_y,test_y = np.array(r2_scores).T
 
                 r2_geq_zero = np.nonzero(test_y >= 0)
@@ -682,7 +682,8 @@ def define_gnll_model(
     learning_rate=None,
     device=None,
     dtype=None,
-    state_dict=None
+    model_state_dict=None,
+    network_state_dict=None
 ):
     '''
     Parameters
@@ -725,8 +726,8 @@ def define_gnll_model(
             
             return (x.normal.mean, x.softmax.mean)
     
-    if not (state_dict is None):
-        model = PALSModel.load_state_dict(state_dict)
+    if not (model_state_dict is None):
+        model = PALSModel.load_state_dict(model_state_dict)
         model.logging_info()
         return model, [lifetime_idx, softmax_idx]
 
@@ -747,13 +748,13 @@ def define_gnll_model(
         (linear(output_size), False),
     ]
 
-    
-    network = PALS_GNLL(
-        layers,
-        [lifetime_idx, lifetime_var_idx, softmax_idx, softmax_var_idx]
-    )
-
-    # network = load_model.load_model()
+    if not (network_state_dict is None):
+        network = load_model.load_network(network_state_dict, PALS_GNLL)
+    else:
+        network = PALS_GNLL(
+            layers,
+            [lifetime_idx, lifetime_var_idx, softmax_idx, softmax_var_idx]
+        )
 
     if learning_rate is None:
         learning_rate = 0.0001
@@ -834,7 +835,9 @@ def main(
         device=None,
         dtype=None,
         input_preprocessing=True,
-        monitor=False
+        monitor=False,
+        model_state_checkpoint=None,
+        network_state_checkpoint=None
 
 ):
     '''
@@ -899,10 +902,19 @@ def main(
     ### monitor : boolean, default False
         Whether to continuously plot the training scores.
 
-    ### load_checkpoint : str, default None
-        Load a checkpoint based on the filename <load_checkpoint>. If
+    ### model_state_checkpoint : str, default None
+        Load a checkpoint of the entire model based on the filename <model_state_checkpoint>. If
         None, does not load a checkpoint. If "latest", load latest
-        checkpoint.
+        checkpoint. Precedes <network_state_checkpoint>: if this is given,
+        the network is initialised based on the contents of this checkpoint,
+        and <network_state_checkpoint> is ignored, as are other variables
+        regarding the model, such as learning rate.
+
+
+    ### network_state_checkpoint : str, default None
+        Load a checkpoint for the neural network based on the filename <network_state_checkpoint>. If
+        None, does not load a checkpoint. If "latest", load latest
+        checkpoint. See <model_state_checkpoint> for further info.
         
     '''
 
@@ -996,16 +1008,30 @@ def main(
 
     model_class = PALS_GNLL
 
-    dict_path = os.path.join(os.getcwd(), "temp_model.pt")
-    state = torch.load(dict_path)
-    state=None
+    if isinstance(network_state_checkpoint, str):
+        val = network_state_checkpoint
+        if len(network_state_checkpoint) == 0:
+            val = None
+        network_state = load_model.load_train_dict(model_file=val)
+    else:
+        network_state = None
+    
+    if isinstance(model_state_checkpoint, str):
+        val = model_state_checkpoint
+        if len(model_state_checkpoint) == 0:
+            val = None
+        model_state = load_model.load_train_dict(model_file=val)
+    else:
+        model_state = None
 
     if model_class is PALS_MSE:
         model, idx = define_mse_model(
             output_size, 
             learning_rate, 
             device=dev, 
-            dtype=dtype
+            dtype=dtype,
+            model_state_dict=model_state,
+            network_state_dict=network_state,
         )
     elif model_class is PALS_GNLL:
         model, idx = define_gnll_model(
@@ -1013,7 +1039,8 @@ def main(
             learning_rate,
             device=dev,
             dtype=dtype,
-            state_dict=state
+            model_state_dict=model_state,
+            network_state_dict=network_state,
         )
 
     # stat = model.state_dict()
@@ -1092,16 +1119,17 @@ if __name__ == "__main__":
     # right now it seems that the loss on the intensities and background
     # is far less than on the lifetimes, yet the R2 is worse for the
     # former
-    # main(
-    #     data_folder="simdata_train01",
-    #     train_size=39500,
-    #     test_size=500,
-    #     epochs=10000,
-    #     tol=float("nan"),
-    #     learning_rate=0.001,
-    #     save_model=True,
-    #     monitor=True
-    # )
+    main(
+        data_folder="simdata_train01",
+        train_size=39500,
+        test_size=500,
+        epochs=200,
+        tol=float("nan"),
+        learning_rate=0.0005,
+        save_model=False,
+        monitor=True,
+        model_state_checkpoint="model20240308172317.pt"
+    )
 
 
     # main(
@@ -1116,16 +1144,16 @@ if __name__ == "__main__":
 
 
 
-    main(
-        data_folder="temp_file",
-        train_size=900,
-        test_size=100,
-        epochs=300,
-        tol=float("nan"),
-        learning_rate=0.0001,
-        save_model=False,
-        monitor=True
-    )
+    # main(
+    #     data_folder="temp_file",
+    #     train_size=900,
+    #     test_size=100,
+    #     epochs=300,
+    #     tol=float("nan"),
+    #     learning_rate=0.0001,
+    #     save_model=False,
+    #     monitor=True
+    # )
 
     # main(
     #     data_folder="temp_file_int",

@@ -470,7 +470,7 @@ def main(
     plot_saver = PlotSaver()
     
     model_class = train_dict.get("model_class", PALS_GNLL)
-    model = load_model.load_model(train_dict, model_class)
+    model = load_model.load_network(train_dict, model_class)
     model.eval()
     if PALS_MSE is model_class:
         evaluate_model(model, train_dict, x, y)

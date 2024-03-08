@@ -23,9 +23,9 @@ def load_train_dict(model_folder=None, model_file=None):
     return train_dict
 
 
-def load_model(train_dict:dict=None, network:torch.nn.Module=None):
+def load_network(train_dict:dict=None, network:torch.nn.Module=None):
     '''
-    Inititialise the model based on data in the <train_dict>.
+    Inititialise the neural network based on data in the <train_dict>.
 
     See `load_train_dict()` for more about <train_dict>.
 
@@ -53,7 +53,9 @@ def load_model(train_dict:dict=None, network:torch.nn.Module=None):
 
     if "model" in train_dict:
         model_class, kwargs, param = train_dict["model"]
-        return model_class(**kwargs).load_state_dict(param)
+        network = model_class(**kwargs)
+        network.load_state_dict(param)
+        return network
 
 
     if "model_layers" in train_dict: # for older train_dict contents (MLP)
@@ -68,5 +70,5 @@ def load_model(train_dict:dict=None, network:torch.nn.Module=None):
 
 if __name__ == "__main__":
 
-    network = load_model()
+    network = load_network()
     print(network)
