@@ -57,6 +57,8 @@ from active_plot import active_plotting
 
 from models import MLP, NeuralNet, Conv1, PALS_MSE, PALS_GNLL
 
+import load_model
+
 _rng = np.random.default_rng()
 
 # It's kind of a stupid name, but don't know what
@@ -922,19 +924,24 @@ def main(
     # Define the model
     # --------------------------------------
 
-    # model, idx = define_mse_model(
-    #     output_size, 
-    #     learning_rate, 
-    #     device=dev, 
-    #     dtype=dtype
-    # )
+    model_class = PALS_GNLL
 
-    model, idx = define_gnll_model(
-        output_size,
-        learning_rate,
-        device=dev,
-        dtype=dtype
-    )
+    if model_class is PALS_MSE:
+        model, idx = define_mse_model(
+            output_size, 
+            learning_rate, 
+            device=dev, 
+            dtype=dtype
+        )
+    elif model_class is PALS_GNLL:
+        model, idx = define_gnll_model(
+            output_size,
+            learning_rate,
+            device=dev,
+            dtype=dtype
+        )
+
+    model.inner_model = load_model.load_model()
     # ======================================
 
     softmax_idx = idx[1]
@@ -970,6 +977,7 @@ def main(
 
 
         whole_state_dict = {
+            "model_class": model_class,
             "model_kwargs": model.inner_model.instantiation_kwargs,
             "model_state_dict": best_model_state_dict,
             "normalisation": y_train_col_max,
@@ -1011,16 +1019,16 @@ if __name__ == "__main__":
     # right now it seems that the loss on the intensities and background
     # is far less than on the lifetimes, yet the R2 is worse for the
     # former
-    main(
-        data_folder="simdata_train01",
-        train_size=39500,
-        test_size=500,
-        epochs=1000,
-        tol=float("nan"),
-        learning_rate=0.001,
-        save_model=False,
-        monitor=True
-    )
+    # main(
+    #     data_folder="simdata_train01",
+    #     train_size=39500,
+    #     test_size=500,
+    #     epochs=10000,
+    #     tol=float("nan"),
+    #     learning_rate=0.001,
+    #     save_model=True,
+    #     monitor=True
+    # )
 
 
     # main(
@@ -1035,16 +1043,16 @@ if __name__ == "__main__":
 
 
 
-    # main(
-    #     data_folder="temp_file",
-    #     train_size=900,
-    #     test_size=100,
-    #     epochs=2000,
-    #     tol=float("nan"),
-    #     learning_rate=0.0001,
-    #     save_model=False,
-    #     monitor=False
-    # )
+    main(
+        data_folder="temp_file",
+        train_size=900,
+        test_size=100,
+        epochs=500,
+        tol=float("nan"),
+        learning_rate=0.0001,
+        save_model=True,
+        monitor=True
+    )
 
     # main(
     #     data_folder="temp_file_int",

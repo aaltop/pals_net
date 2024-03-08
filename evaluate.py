@@ -37,9 +37,10 @@ from helpers import one_line_print
 from plotting_utility import PlotSaver
 
 
-from pytorch_helpers import r2_score
+from pytorch_helpers import r2_score, convert_to_tensor
+
 from models import MLP, NeuralNet, PALS_MSE, PALS_GNLL
-from pytorch_helpers import convert_to_tensor
+import load_model
 
 _rng = np.random.default_rng()
 
@@ -257,35 +258,6 @@ def test_prediction(
     plt.title(f"Kolmogorov-Smirnov test p-values histogram, rejected: {rejects}")
     plt.show()
 
-def load_generic_model(
-    network:torch.nn.Module,
-    train_dict
-):
-
-        # Ready the model
-    # ------------------------------------------------
-
-    # older train_dicts didn't have these, so use get with the default
-    # specified
-    dev = train_dict.get("device", "cpu")
-    dtype = train_dict.get("dtype", torch.float32)
-
-
-    # NOTE: this assumes state_dict contains the model_layers,
-    # model_state_dict and the normalisation originally used for
-    # the output, as well as used device and data type
-
-    # for older train_dict contents
-    if "model_layers" in train_dict:
-        model = MLP(train_dict["model_layers"]).to(dev, dtype)
-    else:
-        model = network(**train_dict["model_kwargs"]).to(dev, dtype)
-
-    model.load_state_dict(train_dict["model_state_dict"])
-    model.eval()
-
-    return model
-
 
 def evaluate_model(
     model,
@@ -440,18 +412,8 @@ def main(
 
     # Load up the model data
     # ------------------------------------------------
-    if model_folder is None:
-        model_folder = "saved_models"
 
-    model_path = os.path.join(os.getcwd(), model_folder)
-
-    if model_file is None:
-        model_file = os.listdir(model_path)[-1]
-
-    path_to_saved_model = os.path.join(model_path, model_file)
-
-    with open(path_to_saved_model, "rb") as f:
-        train_dict = torch.load(f)
+    train_dict = load_model.load_train_dict(model_folder, model_file)
 
 
     log_file_path = train_dict.get('log_file_path', None)
@@ -507,9 +469,13 @@ def main(
 
     plot_saver = PlotSaver()
     
-    model = load_generic_model(PALS_MSE, train_dict)
-    model = load_generic_model(PALS_GNLL, train_dict)
-    (pred, pred_var), separate_r2 = evaluate_gnll_model(model, train_dict, x, y, comp_names, plot_saver)
+    model_class = train_dict.get("model_class", PALS_GNLL)
+    model = load_model.load_model(train_dict, model_class)
+    model.eval()
+    if PALS_MSE is model_class:
+        evaluate_model(model, train_dict, x, y)
+    elif PALS_GNLL is model_class:
+        (pred, pred_var), separate_r2 = evaluate_gnll_model(model, train_dict, x, y, comp_names, plot_saver)
 
     # PLot histograms of the distribution of residuals
     # ------------------------------------------------
@@ -570,14 +536,6 @@ def main(
 
 
     raise SystemExit
-    # print(pred)
-    # # so obviously the intensities are not currently constrained to
-    # # be anything specifically, as my idea was originally that I'd like
-    # # to first see if it can, on its own, get the right values. This
-    # # does seem to be close to one and at least not greater, but it
-    # # isn't so great to have it less than one either.
-    # TODO: add softmax to intensities
-    # print(pred[1::2].sum())
 
     # test_prediction([one_pred,one_y])
     test_prediction([(pred[i,:][:-1], y[i,:][:-1]) for i in range(len(pred))], _rng)
@@ -589,7 +547,7 @@ if __name__ == "__main__":
 
     main(
         data_folder="simdata_evaluate01",
-        # model_file="model20240229131017.pt",
+        # model_file="model20240307171529.pt",
         verbose=False
     )
 
