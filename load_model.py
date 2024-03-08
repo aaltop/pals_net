@@ -41,7 +41,7 @@ def load_model(train_dict:dict=None, network:torch.nn.Module=None):
         The class used as the model. If None,
         attempts to get the value at key "model_class" from <train_dict>.
     '''
-    
+
     if train_dict is None:
         train_dict = load_train_dict()
 
@@ -51,10 +51,11 @@ def load_model(train_dict:dict=None, network:torch.nn.Module=None):
     dev = train_dict.get("device", "cpu")
     dtype = train_dict.get("dtype", torch.float32)
 
+    if "model" in train_dict:
+        model_class, kwargs, param = train_dict["model"]
+        return model_class(**kwargs).load_state_dict(param)
 
-    # NOTE: this assumes state_dict contains the model_kwargs,
-    # model_state_dict and the normalisation originally used for
-    # the output, as well as used device and data type
+
     if "model_layers" in train_dict: # for older train_dict contents (MLP)
         model = network(train_dict["model_layers"]).to(dev, dtype)
     else:

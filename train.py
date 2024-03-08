@@ -77,6 +77,9 @@ class Model:
 
     ### loss_func : PyTorch loss function
 
+    ### loss_kwargs : dictionary
+        values passed to the loss when initialising.
+
     ### scheduler : PyTorch learning rate scheduler, default None
         If None, no scheduler is used, meaning the learning rate
         specified for the optimiser is not adjusted.
@@ -93,11 +96,12 @@ class Model:
     
     '''
 
-    def __init__(self, model, optim, loss_func, scheduler=None, device=None, dtype=None):
+    def __init__(self, model, optim, loss_func, loss_kwargs, scheduler=None, device=None, dtype=None):
 
         self.inner_model = model
         self.optim = optim
         self._loss_func = loss_func
+        self.loss_kwargs = loss_kwargs
         self.scheduler = scheduler
         self.device = "cpu" if device is None else device
         self.dtype = torch.float32 if dtype is None else dtype
@@ -105,6 +109,52 @@ class Model:
         self.to_device(self.inner_model)
         self.to_device(self._loss_func)
 
+    def state_dict(self, best_inner_state=None):
+        '''
+        Return the state of the instance as a dictionary, to be
+        loaded using `.load_state_dict()`.
+
+        If <best_inner_state> is None, use current state dict of the inner
+        model, else use <best_inner_state>.
+        '''
+
+        inner_state = self.inner_model.state_dict() if best_inner_state is None else best_inner_state
+
+        state_dict = {
+            "model":(type(self.inner_model), self.inner_model.instantiation_kwargs, inner_state),
+            "optim":(type(self.optim), self.optim.state_dict()),
+            "loss_func":(type(self._loss_func), self.loss_kwargs),
+            "device":self.device,
+            "dtype":self.dtype
+        }
+
+        if not (self.scheduler is None):
+            state_dict["scheduler"] = (type(self.scheduler), self.scheduler.state_dict())
+
+        return state_dict
+    
+    @classmethod
+    def load_state_dict(cls, state_dict):
+
+        model_class, model_kwargs, model_state = state_dict["model"]
+        model = model_class(**model_kwargs)
+        model.load_state_dict(model_state)
+
+        optim_class, optim_state = state_dict["optim"]
+        optim = optim_class(model.parameters())
+        optim.load_state_dict(optim_state)
+
+        loss_class, loss_kwargs = state_dict["loss_func"]
+        loss_func = loss_class(**loss_kwargs)
+
+        if "scheduler" in state_dict:
+            sched_class, sched_state = state_dict["scheduler"]
+            scheduler = sched_class()
+            scheduler.load_state_dict(sched_state)
+        else:
+            scheduler = None
+
+        return cls(model, optim, loss_func, loss_kwargs, scheduler, state_dict["device"], state_dict["dtype"])
 
     def to_device(self, arg):
         '''
@@ -310,7 +360,7 @@ class Model:
         logging.info("\nUsed scheduler:")
         logging.info(None if self.scheduler is None else pretty_print(self.scheduler))
         logging.info("Used loss:")
-        logging.info(pretty_print(self._loss_func))
+        logging.info(pretty_print(self._loss_func, self.loss_kwargs))
 
 def model_training(
         train_data,
@@ -543,7 +593,8 @@ def define_mse_model(
     output_size,
     learning_rate=None,
     device=None,
-    dtype=None
+    dtype=None,
+    state_dict=None,
 ):
 
 
@@ -567,6 +618,17 @@ def define_mse_model(
     intensity_idx = list(range(1,output_size-1,2))
     bkg_idx = output_size-1
     softmax_idx = intensity_idx + [bkg_idx]
+
+    class PALSModel(Model):
+
+        def transform_true(self, true):
+            
+            return (true[:,lifetime_idx], true[:,softmax_idx])
+        
+    if not (state_dict is None):
+        model = PALSModel.load_state_dict(state_dict)
+        model.logging_info()
+        return model, idx
     
     idx = [lifetime_idx, softmax_idx]
     network = PALS_MSE(
@@ -592,12 +654,6 @@ def define_mse_model(
     loss_kwargs = {
     }
     loss = torch.nn.MSELoss(**loss_kwargs)
-
-    class PALSModel(Model):
-
-        def transform_true(self, true):
-            
-            return (true[:,lifetime_idx], true[:,softmax_idx])
         
     
 
@@ -605,6 +661,7 @@ def define_mse_model(
         network,
         optim,
         loss,
+        loss_kwargs,
         scheduler=sched,
         device=device,
         dtype=dtype
@@ -624,7 +681,8 @@ def define_gnll_model(
     true_size,
     learning_rate=None,
     device=None,
-    dtype=None
+    dtype=None,
+    state_dict=None
 ):
     '''
     Parameters
@@ -634,24 +692,7 @@ def define_gnll_model(
         size (number) of the "true" values, values to be predicted.
     '''
 
-
-    linear = torch.nn.LazyLinear
-    conv = Conv1
-    pool = torch.nn.MaxPool1d
-
-    # TODO: test maxpool?
     output_size = 2*true_size
-    layers = [
-        (conv(1,output_size,5,5), True),
-        (pool(4,4), False),
-        (conv(output_size,output_size*3,3,), True),
-        # (conv(3,9,3,), True),
-        # (conv(9,27,3), True),
-        (torch.nn.Flatten(), False),
-        (linear(output_size*9), True),
-        # (linear(output_size*3), True),
-        (linear(output_size), False),
-    ]
 
     # "components" contains lifetime-intensity pairs, "bkg" should
     # scalar at the end of a row
@@ -667,33 +708,6 @@ def define_gnll_model(
     intensity_var_idx = list(range(true_size+1, output_size-1, 2))
     bkg_var_idx = output_size-1
     softmax_var_idx = intensity_var_idx + [bkg_var_idx]
-    
-    network = PALS_GNLL(
-        layers,
-        [lifetime_idx, lifetime_var_idx, softmax_idx, softmax_var_idx]
-    )
-
-
-    if learning_rate is None:
-        learning_rate = 0.0001
-
-    optim = torch.optim.Adam(network.parameters(), lr=learning_rate)
-    # TODO: check out CosineAnnealingWarmRestarts
-    sched = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optim,
-        factor=0.5,
-        patience=100,
-        verbose=True,
-        threshold=0.01,
-        mode="max",
-        threshold_mode="abs",
-        min_lr=learning_rate*0.5
-    )
-    # sched = None
-
-    loss_kwargs = {
-    }
-    loss = torch.nn.GaussianNLLLoss(**loss_kwargs)
 
     class PALSModel(Model):
 
@@ -710,13 +724,64 @@ def define_gnll_model(
         def get_predictions(self, x):
             
             return (x.normal.mean, x.softmax.mean)
+    
+    if not (state_dict is None):
+        model = PALSModel.load_state_dict(state_dict)
+        model.logging_info()
+        return model, [lifetime_idx, softmax_idx]
+
+    linear = torch.nn.LazyLinear
+    conv = Conv1
+    pool = torch.nn.MaxPool1d
+
+    # TODO: test maxpool?
+    layers = [
+        (conv(1,output_size,5,5), True),
+        (pool(4,4), False),
+        (conv(output_size,output_size*3,3,), True),
+        # (conv(3,9,3,), True),
+        # (conv(9,27,3), True),
+        (torch.nn.Flatten(), False),
+        (linear(output_size*9), True),
+        # (linear(output_size*3), True),
+        (linear(output_size), False),
+    ]
+
+    
+    network = PALS_GNLL(
+        layers,
+        [lifetime_idx, lifetime_var_idx, softmax_idx, softmax_var_idx]
+    )
+
+    # network = load_model.load_model()
+
+    if learning_rate is None:
+        learning_rate = 0.0001
+
+    optim = torch.optim.Adam(network.parameters(), lr=learning_rate)
+    # TODO: check out CosineAnnealingWarmRestarts
+    sched = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optim,
+        factor=0.5,
+        patience=100,
+        verbose=True,
+        threshold=0.01,
+        mode="max",
+        threshold_mode="abs",
+        min_lr=learning_rate*0.5
+    )
+    sched = None
+
+    loss_kwargs = {
+    }
+    loss = torch.nn.GaussianNLLLoss(**loss_kwargs)
         
     
-
     model = PALSModel(
         network,
         optim,
         loss,
+        loss_kwargs,
         scheduler=sched,
         device=device,
         dtype=dtype
@@ -800,7 +865,7 @@ def main(
 
     ### learning_rate : float, default None
         The learning rate used by the optimiser. If None, defaults to
-        0.005.
+        a value that depends on the model.
 
     ### save_model : Boolean, default None
         Determines whether the trained model will be saved for later
@@ -811,7 +876,7 @@ def main(
         a folder "saved_models" using `torch.save()`, with a file name 
         determined by the start time of the training. The model can be
         loaded from there using `torch.load()`: see the module
-        "evaluate.py" for how this happens exactly.
+        "load_model.py" for how this happens exactly.
 
         If False, will not save the model.
 
@@ -833,6 +898,11 @@ def main(
 
     ### monitor : boolean, default False
         Whether to continuously plot the training scores.
+
+    ### load_checkpoint : str, default None
+        Load a checkpoint based on the filename <load_checkpoint>. If
+        None, does not load a checkpoint. If "latest", load latest
+        checkpoint.
         
     '''
 
@@ -926,6 +996,10 @@ def main(
 
     model_class = PALS_GNLL
 
+    dict_path = os.path.join(os.getcwd(), "temp_model.pt")
+    state = torch.load(dict_path)
+    state=None
+
     if model_class is PALS_MSE:
         model, idx = define_mse_model(
             output_size, 
@@ -938,10 +1012,12 @@ def main(
             output_size,
             learning_rate,
             device=dev,
-            dtype=dtype
+            dtype=dtype,
+            state_dict=state
         )
 
-    model.inner_model = load_model.load_model()
+    # stat = model.state_dict()
+    # model = model.load_state_dict(model.state_dict())
     # ======================================
 
     softmax_idx = idx[1]
@@ -975,19 +1051,16 @@ def main(
 
     if save_model or (save_model is None):
 
+        whole_state_dict = model.state_dict(best_inner_state=best_model_state_dict)
 
-        whole_state_dict = {
-            "model_class": model_class,
-            "model_kwargs": model.inner_model.instantiation_kwargs,
-            "model_state_dict": best_model_state_dict,
+        state_extend = {
             "normalisation": y_train_col_max,
-            "device": dev,
-            "dtype": dtype,
             "log_file_path":log_file_path,
             "idx":idx,
             "sim_inputs":inputs,
-
         }
+
+        whole_state_dict.update(state_extend)
 
         # these are the values used when preprocessing the input,
         # useful to pass them on so they can also be done when
@@ -1047,10 +1120,10 @@ if __name__ == "__main__":
         data_folder="temp_file",
         train_size=900,
         test_size=100,
-        epochs=500,
+        epochs=300,
         tol=float("nan"),
         learning_rate=0.0001,
-        save_model=True,
+        save_model=False,
         monitor=True
     )
 
