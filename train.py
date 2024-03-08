@@ -149,7 +149,7 @@ class Model:
 
         if "scheduler" in state_dict:
             sched_class, sched_state = state_dict["scheduler"]
-            scheduler = sched_class()
+            scheduler = sched_class(optim)
             scheduler.load_state_dict(sched_state)
         else:
             scheduler = None
