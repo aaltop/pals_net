@@ -463,7 +463,7 @@ def model_training(
             # be alright, would have to test though.
 
             # continuous plot of training process
-            if monitor and epoch > 0 and 0 == epoch%10:
+            if monitor and epoch > 0 and 0 == epoch%50:
                 x,train_y,test_y = np.array(r2_scores).T
 
                 r2_geq_zero = np.nonzero(test_y >= 0)
@@ -761,16 +761,25 @@ def define_gnll_model(
 
     optim = torch.optim.Adam(network.parameters(), lr=learning_rate)
     # TODO: check out CosineAnnealingWarmRestarts
-    sched = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optim,
-        factor=0.5,
-        patience=100,
-        verbose=True,
-        threshold=0.01,
-        mode="max",
-        threshold_mode="abs",
-        min_lr=learning_rate*0.5
-    )
+    # sched = torch.optim.lr_scheduler.ReduceLROnPlateau(
+    #     optim,
+    #     factor=0.5,
+    #     patience=100,
+    #     verbose=True,
+    #     threshold=0.01,
+    #     mode="max",
+    #     threshold_mode="abs",
+    #     min_lr=learning_rate*0.5
+    # )
+
+    # sched = torch.optim.lr_scheduler.CyclicLR(
+    #     optim,
+    #     base_lr=learning_rate*0.5,
+    #     max_lr=learning_rate,
+    #     step_size_up=200,
+    #     cycle_momentum=False
+    # )
+
     sched = None
 
     loss_kwargs = {
@@ -904,7 +913,7 @@ def main(
 
     ### model_state_checkpoint : str, default None
         Load a checkpoint of the entire model based on the filename <model_state_checkpoint>. If
-        None, does not load a checkpoint. If "latest", load latest
+        None, does not load a checkpoint. If empty string, load latest
         checkpoint. Precedes <network_state_checkpoint>: if this is given,
         the network is initialised based on the contents of this checkpoint,
         and <network_state_checkpoint> is ignored, as are other variables
@@ -913,7 +922,7 @@ def main(
 
     ### network_state_checkpoint : str, default None
         Load a checkpoint for the neural network based on the filename <network_state_checkpoint>. If
-        None, does not load a checkpoint. If "latest", load latest
+        None, does not load a checkpoint. If empty string, load latest
         checkpoint. See <model_state_checkpoint> for further info.
         
     '''
@@ -1010,7 +1019,7 @@ def main(
 
     if isinstance(network_state_checkpoint, str):
         val = network_state_checkpoint
-        if len(network_state_checkpoint) == 0:
+        if len(network_state_checkpoint) == 0: #load latest
             val = None
         network_state = load_model.load_train_dict(model_file=val)
     else:
@@ -1018,7 +1027,7 @@ def main(
     
     if isinstance(model_state_checkpoint, str):
         val = model_state_checkpoint
-        if len(model_state_checkpoint) == 0:
+        if len(model_state_checkpoint) == 0: #load latest
             val = None
         model_state = load_model.load_train_dict(model_file=val)
     else:
@@ -1123,12 +1132,12 @@ if __name__ == "__main__":
         data_folder="simdata_train01",
         train_size=39500,
         test_size=500,
-        epochs=200,
+        epochs=3000,
         tol=float("nan"),
-        learning_rate=0.0005,
-        save_model=False,
+        learning_rate=0.001,
+        save_model=True,
         monitor=True,
-        model_state_checkpoint="model20240308172317.pt"
+        model_state_checkpoint=""
     )
 
 
