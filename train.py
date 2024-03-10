@@ -317,9 +317,12 @@ class Model:
 
         return epoch_loss
     
-    def r2_evaluate(self, inputs, outputs, do_logging=False):
+    def r2_evaluate(self, inputs, outputs, do_logging=False, separate=False):
         '''
         Evaluates the R-squared score, optionally does logging to log the values.
+
+        With <separate> set to True, returns the scores as separate values,
+        rather than as their mean.
 
         Returns
         -------
@@ -327,21 +330,27 @@ class Model:
         ### r2
         '''
 
+
+
         self.inner_model.eval()
         with torch.no_grad():
             
             pred = self.get_predictions(self.inner_model(inputs))
             if isinstance(pred, tuple):
                 matches = zip(pred, self.transform_true(outputs))
-                r2 = torch.cat([r2_score(pred_i, true_i) for pred_i, true_i in matches]).mean().item()
+                r2 = torch.cat([r2_score(pred_i, true_i) for pred_i, true_i in matches])
             else:
-                r2 = r2_score(pred, outputs).mean().item()
+                r2 = r2_score(pred, outputs)
+
 
         if do_logging:
             logging.info("\nR-squared:")
             logging.info(r2)
 
-        return r2
+        if separate:
+            return r2
+        else:
+            return r2.mean().item()
     
     def logging_info(self):
 
@@ -432,6 +441,7 @@ def model_training(
     previous_test_r2 = -np.inf
     best_model_state_dict = deepcopy(model.inner_model.state_dict())
     r2_scores = []
+    test_r2_separates = []
     start = time.time()
     monitoring_initialized = False
     for epoch in range(epochs):
@@ -445,11 +455,13 @@ def model_training(
         if 0 == epoch%10:
 
             train_r2 = model.r2_evaluate(x_train, y_train)
-            test_r2 = model.r2_evaluate(x_test,y_test)
+            test_r2_separate = model.r2_evaluate(x_test,y_test, separate=True)
+            test_r2 = test_r2_separate.mean().item()
 
             r2_scores.append(
                 np.array([float(epoch)]+[train_r2,test_r2])
             )
+            test_r2_separates.append(test_r2_separate.numpy(force=True))
             if previous_test_r2 < test_r2:
                 previous_test_r2 = test_r2
                 best_model_state_dict = deepcopy(model.inner_model.state_dict())
@@ -465,24 +477,41 @@ def model_training(
             # continuous plot of training process
             if monitor and epoch > 0 and 0 == epoch%50:
                 x,train_y,test_y = np.array(r2_scores).T
+                separates_array = np.array(test_r2_separates)
 
+                # plot only positive r2 scores
                 r2_geq_zero = np.nonzero(test_y >= 0)
                 r2_x = x[r2_geq_zero]
+                separates_array = separates_array[r2_geq_zero]
+
+                plot_loss = False
+
+                axes_mosaic = [
+                    ["test R2 separate"],
+                    ["Both R2"]
+                ]
+                if plot_loss:
+                    axes_mosaic = [["loss"]] + axes_mosaic
+                # assume a number of r2 values in separates_array each
+                # in one column, so transpose to iterate over each
+                # individual one
+                separates_to_plot = [(r2_x, val) for val in separates_array.T]
 
                 loss_to_plot = losses[:epoch]
                 negative_losses = np.any(loss_to_plot < 0)
                 to_plot = [
-                    [
-                        (range(epoch),loss_to_plot)
-                    ],
+                    separates_to_plot,
                     [
                         (r2_x,test_y[r2_geq_zero]),
                         (r2_x, train_y[r2_geq_zero])
                     ]
                 ]
+                if plot_loss:
+                    to_plot = [[(range(epoch),loss_to_plot)]] + to_plot
 
                 if not monitoring_initialized:
-                    fig, axs = plt.subplots(2,1)
+                    fig, axs = plt.subplot_mosaic(axes_mosaic)
+                    axs = list(axs.values())
 
                     for i in range(len(to_plot)):
                         for j in range(len(to_plot[i])):
@@ -490,7 +519,7 @@ def model_training(
                             axs[i].grid(visible=True)
 
 
-                    if not negative_losses:
+                    if plot_loss and not negative_losses:
                         axs[0].set_yscale("log")
                     plt.show(block=False)
                     monitoring_initialized = True
@@ -498,7 +527,7 @@ def model_training(
                 
 
                 active_plotting(axs, to_plot)
-                plt.pause(0.01)
+                plt.pause(0.05)
 
         # tolerance
         if abs(current_loss-previous_loss)/previous_loss <= tolerance:
@@ -720,7 +749,10 @@ def define_gnll_model(
             
             # assume pred is (mean, var)
             _input, var = pred
-            return self._loss_func(_input, true, var)
+
+            r2_loss = (1-r2_score(_input, true)).sum()
+
+            return r2_loss + self._loss_func(_input, true, var)
         
         def get_predictions(self, x):
             
@@ -1132,12 +1164,12 @@ if __name__ == "__main__":
         data_folder="simdata_train01",
         train_size=39500,
         test_size=500,
-        epochs=3000,
+        epochs=300,
         tol=float("nan"),
         learning_rate=0.001,
-        save_model=True,
+        save_model=False,
         monitor=True,
-        model_state_checkpoint=""
+        # model_state_checkpoint="model20240309181833.pt"
     )
 
 
