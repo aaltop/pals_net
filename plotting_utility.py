@@ -8,9 +8,10 @@ import matplotlib.pyplot as plt
 class PlotSaver:
 
 
-    def __init__(self):
+    def __init__(self, file_suffix=None):
 
-        self.figs_path = os.path.join(os.getcwd(), "figures", date_time_str())
+        folder_name = date_time_str() + file_suffix if not (file_suffix is None) else ""
+        self.figs_path = os.path.join(os.getcwd(), "figures", folder_name)
         os.makedirs(self.figs_path, exist_ok=True)
 
     def get_saved_path(self, name):

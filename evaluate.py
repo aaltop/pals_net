@@ -419,15 +419,18 @@ def main(
     log_file_path = train_dict.get('log_file_path', None)
     if verbose and not (log_file_path is None):
 
-        print("---------------------------------------")
-        print(f"Log file at {log_file_path}:\n")
-        log_str = "-LOG"*10+"-"
-        print(log_str)
-        print()
-        with open(log_file_path, "r", encoding="utf-8") as f:
-            print(f.read())
-        
-        print(log_str)
+        try:
+            with open(log_file_path, "r", encoding="utf-8") as f:
+                print("---------------------------------------")
+                print(f"Log file at {log_file_path}:\n")
+                log_str = "-LOG"*10+"-"
+                print(log_str)
+                print()
+                print(f.read())
+            
+            print(log_str)
+        except FileNotFoundError:
+            print("Log file not found; it's name may have changed.")
     
     # ==================================================
 
@@ -467,7 +470,7 @@ def main(
     # Ready the model
     # ------------------------------------------------
 
-    plot_saver = PlotSaver()
+    plot_saver = PlotSaver(data_folder)
     
     model_class = train_dict.get("model_class", PALS_GNLL)
     model = load_model.load_network(train_dict, model_class)
@@ -545,13 +548,19 @@ def main(
 
 if __name__ == "__main__":
 
+    # main(
+    #     data_folder="simdata_evaluate01",
+    #     # model_file="model20240307171529.pt",
+    #     verbose=False
+    # )
+
     main(
-        data_folder="simdata_evaluate01",
-        # model_file="model20240307171529.pt",
+        data_folder="simdata_train03",
+        model_file = "model20240312170320.pt",
         verbose=False
     )
 
     # main(
-    #     data_folder="simdata_evaluate02",
-    #     verbose=True
+    #     data_folder="simdata_evaluate05",
+    #     verbose=False
     # )
