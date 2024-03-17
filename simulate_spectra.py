@@ -609,7 +609,7 @@ def random_input_prm(rng=None):
 
 
     # 800_000, 1_200_000
-    num_events = int(rng.uniform(800_000, 1_200_000))
+    num_events = int(rng.uniform(200_000, 1_100_000))
     # num_events = 5_000_000
 
     bkg = (1_000_000*0.005)/num_events
@@ -618,17 +618,18 @@ def random_input_prm(rng=None):
 
     
     lifetimes = [
-        245+rng.uniform(low=-25,high=25),
-        400+rng.uniform(low=-40,high=40),
-        1500+rng.uniform(low=-150,high=150)
+        245+rng.uniform(low=-50,high=50),
+        400+rng.uniform(low=-80,high=80),
+        1500+rng.uniform(low=-300,high=300)
     ]
 
     
     # TODO: replace with Dirichlet distribution?
     intensities = [0]*3
-    intensities[-1] = rng.uniform(0.001,0.04)*remaining
+    # intensities[-1] = rng.uniform(0.001,0.04)*remaining
+    intensities[-1] = rng.uniform(0.015,0.025)*remaining
     remaining -= intensities[-1]
-    intensities[0] = rng.uniform(0.70, 0.85)*remaining
+    intensities[0] = rng.uniform(0.725, 0.775)*remaining
     intensities[1] = remaining-intensities[0]
 
     components = list(zip(lifetimes,intensities))
@@ -648,7 +649,7 @@ def random_input_prm(rng=None):
     return input_prm
 
 
-def write_many_simulations(sims_to_write, folder_name=None, input_prm=None):
+def write_many_simulations(sims_to_write, folder_name=None, input_prm=None, repetition_count=1):
     '''
     Write multiple simulations to file; see function
     `write_simulation_data()` for more information.
@@ -677,6 +678,11 @@ def write_many_simulations(sims_to_write, folder_name=None, input_prm=None):
 
         If <input_prm> is None, defaults to using the function 
         `random_input_prm()` to generate randomised input parameters.
+
+    ### repetition_count : int
+        How many times to use the same input_prm, mainly useful for
+        when using `random_input_prm()`. Final number of simulations
+        will be repetition_count*sims_to_write.
 
     Returns
     -------
@@ -715,15 +721,16 @@ def write_many_simulations(sims_to_write, folder_name=None, input_prm=None):
             input_prm = random_input_prm()
 
 
-        file_index = write_simulation_data(
-            input_prm, 
-            folder_name=folder_name,
-            file_index=file_index
-        )
-        
-        # write_simulation_data should return previously written
-        # file index, so add one to get next free one
-        file_index += 1
+        for _ in range(repetition_count):
+            file_index = write_simulation_data(
+                input_prm, 
+                folder_name=folder_name,
+                file_index=file_index
+            )
+            
+            # write_simulation_data should return previously written
+            # file index, so add one to get next free one
+            file_index += 1
 
     print()
 
@@ -747,9 +754,10 @@ def main():
     print("Starting to write simulations...")
     start = time.time()
     write_many_simulations(
-        sims_to_write=200,
-        folder_name="simdata_evaluate07",
-        input_prm=None
+        sims_to_write=9990,
+        folder_name="simdata_train09",
+        input_prm=None,
+        repetition_count=1
     )
     stop = time.time()
     print(f"Simulation writing took {stop-start} seconds.")
