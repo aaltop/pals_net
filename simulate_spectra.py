@@ -402,6 +402,7 @@ def write_simulation_data(
     # bisect, but might not have that big an effect. Again, point
     # is to write a lot of files at a time, and the index only needs
     # to be determined once in this case.)
+    # -----------------------------------------------------------------
     if file_index is None:
         file_index = 1
 
@@ -420,6 +421,7 @@ def write_simulation_data(
                 raise ValueError(f"file_index too high")
             continue
         break
+    # ===============================================================
 
     # generate simulation data
     time_ps, counts = sim_pals(input_prm, rng)
@@ -605,19 +607,20 @@ def random_input_prm(rng=None):
     if rng is None:
         rng = _rng
 
-    num_events = int(rng.uniform(200_000, 1_100_000))
+
+    # 800_000, 1_200_000
+    num_events = int(rng.uniform(800_000, 1_200_000))
     # num_events = 5_000_000
 
     bkg = (1_000_000*0.005)/num_events
-
     # remaining "intensity", how much of the num_events are still unspecified
     remaining = 1-bkg
 
     
     lifetimes = [
-        245+round(rng.uniform(low=-50,high=50)),
-        400+round(rng.uniform(low=-80,high=80)),
-        1500+round(rng.uniform(low=-300,high=300))
+        245+rng.uniform(low=-25,high=25),
+        400+rng.uniform(low=-40,high=40),
+        1500+rng.uniform(low=-150,high=150)
     ]
 
     
@@ -630,7 +633,7 @@ def random_input_prm(rng=None):
 
     components = list(zip(lifetimes,intensities))
 
-    offset = 1000 + rng.uniform(low=0, high=100)
+    offset = round(1000 + rng.uniform(low=0, high=100))
 
     input_prm = {"num_events": num_events,
                  "bkg": bkg,
@@ -744,8 +747,8 @@ def main():
     print("Starting to write simulations...")
     start = time.time()
     write_many_simulations(
-        sims_to_write=10000,
-        folder_name="temp_file_int",
+        sims_to_write=200,
+        folder_name="simdata_evaluate07",
         input_prm=None
     )
     stop = time.time()

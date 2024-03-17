@@ -57,7 +57,7 @@ from pytorch_helpers import (
 
 from active_plot import active_plotting
 
-from models import MLP, NeuralNet, Conv1, PALS_MSE, PALS_GNLL
+from models import MLP, NeuralNet, Conv1, PALS_MSE, PALS_GNLL, PALS_GNLL_Intensities
 
 import load_model
 
@@ -707,7 +707,7 @@ def define_mse_model(
 
     # return also the index correspondence for finding the correct
     # corresponendences from the true output
-    return model, idx
+    return model, {"normal":idx}
 
 def define_gnll_model(
     true_size,
@@ -840,8 +840,142 @@ def define_gnll_model(
 
     # return also the index correspondence for finding the correct
     # corresponendences from the true output
-    return model, [lifetime_idx, softmax_idx]
+    return model,{"normal":lifetime_idx, "softmax":softmax_idx}
 
+def define_gnll_model_intensities(
+    true_size,
+    learning_rate=None,
+    device=None,
+    dtype=None,
+    model_state_dict=None,
+    network_state_dict=None
+):
+    '''
+    Parameters
+    ----------
+
+    ### true_size
+        size (number) of the "true" values, values to be predicted.
+    '''
+
+    output_size = 2*true_size
+
+    # "components" contains lifetime-intensity pairs, "bkg" should
+    # scalar at the end of a row
+    # these should be the values that correspond to those in the
+    # "true" output
+    # lifetime_idx = list(range(0,true_size-1,2))
+    # intensity_idx = list(range(1,true_size-1,2))
+    intensity_idx = list(range(true_size-1))
+    bkg_idx = true_size-1
+    softmax_idx = intensity_idx + [bkg_idx]
+    # variance does not have correspondence in the "true" output,
+    # but should the same size as the true output
+    # lifetime_var_idx = list(range(true_size, output_size-1, 2))
+    # intensity_var_idx = list(range(true_size+1, output_size-1, 2))
+    intensity_var_idx = list(range(true_size, output_size-1))
+    bkg_var_idx = output_size-1
+    softmax_var_idx = intensity_var_idx + [bkg_var_idx]
+
+    class PALSModel(Model):
+
+        def transform_true(self, true):
+            
+            return true[:,softmax_idx]
+        
+        def loss_func(self, pred, true):
+            
+            # assume pred is (mean, var)
+            _input, var = pred
+
+            r2_loss = (1-r2_score(_input, true)).sum()
+
+            return r2_loss + self._loss_func(_input, true, var)
+        
+        def get_predictions(self, x):
+            
+            return x[0]
+    
+    if not (model_state_dict is None):
+        model = PALSModel.load_state_dict(model_state_dict)
+        model.logging_info()
+        return model, softmax_idx
+
+    linear = torch.nn.LazyLinear
+    conv = Conv1
+    pool = torch.nn.MaxPool1d
+
+    # TODO: test maxpool?
+    layers = [
+        (conv(1,output_size,5,5), True),
+        (pool(4,4), False),
+        (conv(output_size,output_size*3,3,), True),
+        # (conv(3,9,3,), True),
+        # (conv(9,27,3), True),
+        (torch.nn.Flatten(), False),
+        (linear(output_size*9), True),
+        # (linear(output_size*3), True),
+        (linear(output_size), False),
+    ]
+
+    if not (network_state_dict is None):
+        network = load_model.load_network(network_state_dict, PALS_GNLL)
+    else:
+        network = PALS_GNLL_Intensities(
+            layers,
+            [softmax_idx, softmax_var_idx]
+        )
+
+    if learning_rate is None:
+        learning_rate = 0.0001
+
+    optim = torch.optim.Adam(network.parameters(), lr=learning_rate)
+    # TODO: check out CosineAnnealingWarmRestarts
+    # sched = torch.optim.lr_scheduler.ReduceLROnPlateau(
+    #     optim,
+    #     factor=0.5,
+    #     patience=100,
+    #     verbose=True,
+    #     threshold=0.01,
+    #     mode="max",
+    #     threshold_mode="abs",
+    #     min_lr=learning_rate*0.5
+    # )
+
+    # sched = torch.optim.lr_scheduler.CyclicLR(
+    #     optim,
+    #     base_lr=learning_rate*0.5,
+    #     max_lr=learning_rate,
+    #     step_size_up=200,
+    #     cycle_momentum=False
+    # )
+
+    sched = None
+
+    loss_kwargs = {
+    }
+    loss = torch.nn.GaussianNLLLoss(**loss_kwargs)
+        
+    
+    model = PALSModel(
+        network,
+        optim,
+        loss,
+        loss_kwargs,
+        scheduler=sched,
+        device=device,
+        dtype=dtype
+    )
+
+    model.logging_info()
+    # state_dict() doesn't seem to work for the losses, so need to do
+    # this
+    logging.info("Loss kwargs:")
+    logging.info(loss_kwargs)
+
+    # return also the index correspondence for finding the correct
+    # corresponendences from the true output
+    return model, {"softmax":softmax_idx}
 
 def setup_logger(date_str):
 
@@ -990,8 +1124,22 @@ def main(
         "bkg"
     )
     x_train, y_train, comp_names = get_simdata(data_path, train_files, inputs)
-    output_size = y_train[0].shape[0]
     x_test, y_test, _ = get_simdata(data_path, test_files, inputs)
+
+    def _in(words, _str):
+
+        for word in words:
+            if word in _str:
+                return True
+        return False
+    
+    # words = ("lifetime", "bkg", "3", "2")
+    # y_train = np.array([comp for comp,name in zip(y_train.T, comp_names) if not _in(words, name)]).T
+    # y_test = np.array([comp for comp,name in zip(y_test.T, comp_names) if not _in(words, name)]).T
+
+
+    output_size = y_train[0].shape[0]
+
 
     print("Fetched input and output...")
 
@@ -1089,7 +1237,7 @@ def main(
 
     # ======================================
 
-    softmax_idx = idx[1]
+    softmax_idx = idx["softmax"]
     proc = SubMinDivByMax
     # normalise outputs based on train output (could be problematic
     # if values in y_test are larger than in y_train, as the idea
@@ -1169,7 +1317,7 @@ if __name__ == "__main__":
         data_folder="simdata_train01",
         train_size=39500,
         test_size=500,
-        epochs=300,
+        epochs=500,
         tol=float("nan"),
         learning_rate=0.001,
         save_model=False,

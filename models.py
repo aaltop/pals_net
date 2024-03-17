@@ -228,9 +228,9 @@ class PALS_GNLL(PALS_MSE):
         ### idx : list of list of int
             Element one contains a list of indices of values to not
             compute softmax on, 
-            element two contains a list of indices
-            to compute softmax on, and element three contains a list
-            of indices of variances.
+            element two contains a list of indices for the matching variances,
+            element three contains a list of indices to compute softmax on, and element four contains a list
+            of indices for the matching variances.
 
         '''
         super().__init__(layers, idx)
@@ -268,6 +268,24 @@ class PALS_GNLL(PALS_MSE):
         '''
 
         return super().forward(x)
+
+
+class PALS_GNLL_Intensities(PALS_GNLL):
+
+    def process_output(self, x):
+        
+        softmax_idx, var_idx = self.idx
+
+        softplus = torch.nn.Softplus(beta=10)
+        A = 2.3
+
+        sigm = torch.nn.Sigmoid()
+
+        # softmaxxed = self.softmax(x[:, softmax_idx])
+        softmaxxed = sigm(x[:, softmax_idx])
+        softmaxxed_var = A*softplus(x[:, var_idx])
+        
+        return [softmaxxed, softmaxxed_var]
 
 
 if __name__ == "__main__":
