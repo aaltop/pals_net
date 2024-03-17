@@ -3,6 +3,7 @@ Functions used for processing input and output data
 '''
 
 import logging
+import abc
 
 from read_data import (
     read_metadata, 
@@ -135,6 +136,143 @@ def fetch_output(folder_path, data_files):
     outputs = get_components(metadata, data_files)
     return convert_to_tensor(outputs)
 
+class AbstractOutputProcessing(abc.ABC):
+    '''
+    Base Abstract class for output processing
+    '''
+
+    @abc.abstractmethod
+    def process(self, _input, *args, **kwargs):
+        '''
+        Process the input and return the result.
+        '''
+        pass
+
+    @abc.abstractmethod
+    def inv_process(self, _input, *args, **kwargs):
+        '''
+        The inverse of `process()`.
+        '''
+        pass
+
+    @abc.abstractmethod
+    def inv_process_var(self, _input, *args, **kwargs):
+        '''
+        The inverse processing of variance of the output.
+        '''
+        pass
+
+    @abc.abstractmethod
+    def state_dict(self) -> dict:
+        '''
+        Return the attributes necessary for processing, such
+        that the state of the instance can be instantiated again
+        by passing the return from this method to the __init__
+        of the class: OutputProcessing(**output_processing.get_state()).
+        '''
+        pass
+
+class DivByMax(AbstractOutputProcessing):
+    '''
+    Divide <output> by <train_output_col_max>, 
+    the maximum of each column of the training data.
+    '''
+
+    def __init__(self, train_output=None, train_output_col_max=None, no_processing_idx=None):
+        '''
+        Calculate <train_output_col_max> from <train_output> if
+        <train_output_col_max> is None. If <no_process_idx> is given,
+        the indices given by it will not be processed.
+        '''
+
+        if not (train_output_col_max is None):
+            self.train_output_col_max = train_output_col_max
+        elif not (train_output is None):
+            self.train_output_col_max = train_output.amax(dim=0)
+        else:
+            raise TypeError("One of <train_output>, <train_output_col_max> should be a suitable PyTorch tensor.")
+        
+        if not (no_processing_idx is None):
+            self.no_processing_idx = no_processing_idx
+            self.train_output_col_max[no_processing_idx] = 1.0
+            
+    
+    def process(self, _input):
+
+        return _input/self.train_output_col_max
+    
+    def inv_process(self, _input):
+
+        return _input*self.train_output_col_max
+    
+    def inv_process_var(self, _input):
+        '''
+        The inverse processing of variance of the output.
+        '''
+        return _input*self.train_output_col_max**2
+
+    def state_dict(self):
+
+        return {
+            "train_output_col_max":self.train_output_col_max,
+            "no_processing_idx":self.no_processing_idx
+        }
+    
+
+class SubMinDivByMax(AbstractOutputProcessing):
+    '''
+    Subtract <train_output_col_min>, the minimum of each column of the training data from <output>,
+    and divide by <train_output_col_max>, the maximum of each column of the training data. The max
+    is calculated after the subtraction. 
+    '''
+
+    def __init__(self, train_output=None, train_output_col_min=None, train_output_col_max=None, no_processing_idx=None):
+        '''
+        Calculate <train_output_col_min> and <train_output_col_max> from <train_output>
+        based on whether they are None or not. If <no_process_idx> is given,
+        the indices given by it will not be processed.
+        '''
+
+        if not (train_output_col_min is None):
+            self.train_output_col_min = train_output_col_min
+        elif not (train_output is None):
+            self.train_output_col_min = train_output.amin(dim=0)
+        else:
+            raise TypeError("One of <train_output>, <train_output_col_min> should be a suitable PyTorch tensor.")
+        
+        if not (train_output_col_max is None):
+            self.train_output_col_max = train_output_col_max
+        elif not (train_output is None):
+            self.train_output_col_max = (train_output-self.train_output_col_min).amax(dim=0)
+        else:
+            raise TypeError("One of <train_output>, <train_output_col_max> should be a suitable PyTorch tensor.")
+        
+        if not (no_processing_idx is None):
+            self.no_processing_idx = no_processing_idx
+            self.train_output_col_max[no_processing_idx] = 1.0
+            self.train_output_col_min[no_processing_idx] = 0.0
+    
+    def process(self, _input):
+
+        return (_input-self.train_output_col_min)/self.train_output_col_max
+    
+    def inv_process(self, _input):
+
+        return _input*self.train_output_col_max+self.train_output_col_min
+    
+    def inv_process_var(self, _input):
+        '''
+        The inverse processing of variance of the output.
+        '''
+        return _input*self.train_output_col_max**2
+    
+    def state_dict(self):
+
+        return {
+            "train_output_col_max":self.train_output_col_max,
+            "train_output_col_min":self.train_output_col_min,
+            "no_processing_idx":self.no_processing_idx
+        }
 
 def process_input01(x):
     '''

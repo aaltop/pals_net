@@ -287,7 +287,13 @@ def evaluate_model(
         pred = torch.column_stack(pred)[:, pred_to_y_conversion]
 
 
-    pred = pred.detach()*train_dict["normalisation"]
+    if "normalisation" in train_dict:
+        pred = pred.detach()*train_dict["normalisation"]
+    else:
+        proc, kwargs = train_dict["output_normalisation"]
+        output_processing = proc(**kwargs)
+        pred = output_processing.inv_process(pred.detach())
+
     pred = pred.to("cpu")
 
 
@@ -335,14 +341,22 @@ def evaluate_gnll_model(
         pred_var = torch.column_stack((normal_var, softmax_var))[:, pred_to_y_conversion]
 
 
-    pred = pred.detach()*train_dict["normalisation"]
+    if "normalisation" in train_dict:
+        pred = pred.detach()*train_dict["normalisation"]
+        
+
+        # To get actual variance, need to multiply by the square of 
+        # the multiplying normalisation constant
+        pred_var = pred_var.detach()*(train_dict["normalisation"]**2)
+    else:
+        proc, kwargs = train_dict["output_normalisation"]
+        output_processing = proc(**kwargs)
+
+        pred = output_processing.inv_process(pred.detach())
+        pred_var = output_processing.inv_process_var(pred_var.detach())
+
     pred = pred.to("cpu")
-
-    # To get actual variance, need to multiply by the square of 
-    # the normalisation
-    pred_var = pred_var.detach()*(train_dict["normalisation"]**2)
     pred_var = pred_var.to("cpu")
-
 
 
     print("\nValidation set r-squared:")

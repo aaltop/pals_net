@@ -43,7 +43,9 @@ from read_data import (
 
 from processing import (
     process_input_mlp,
-    process_input01
+    process_input01,
+    DivByMax,
+    SubMinDivByMax
 )
 
 from pytorch_helpers import (
@@ -546,6 +548,7 @@ def model_training(
     logging.info("\n End evaluation")
     logging.info("==================")
     model.evaluate(x_test[:15,], y_test[:15,], batch_size)
+    model.r2_evaluate(x_test, y_test, do_logging=True)
 
     return losses, r2_scores, best_model_state_dict
 
@@ -1084,19 +1087,21 @@ def main(
             network_state_dict=network_state,
         )
 
-    # stat = model.state_dict()
-    # model = model.load_state_dict(model.state_dict())
     # ======================================
 
     softmax_idx = idx[1]
+    proc = SubMinDivByMax
     # normalise outputs based on train output (could be problematic
     # if values in y_test are larger than in y_train, as the idea
     # would be to normalise to one?)
-    y_train_col_max = y_train.amax(dim=0)
-    # don't normalise intensities or background
-    y_train_col_max[softmax_idx] = 1.0
-    y_train /= y_train_col_max
-    y_test /= y_train_col_max
+    output_processing = proc(y_train, no_processing_idx=softmax_idx)
+    output_processing = proc(**output_processing.state_dict())
+    # #don't normalise intensities or background
+    y_train = output_processing.process(y_train)
+    y_test = output_processing.process(y_test)
+
+
+
 
     # Do training
     # --------------------------------------
@@ -1122,7 +1127,7 @@ def main(
         whole_state_dict = model.state_dict(best_inner_state=best_model_state_dict)
 
         state_extend = {
-            "normalisation": y_train_col_max,
+            "output_normalisation": (type(output_processing), output_processing.state_dict()),
             "log_file_path":log_file_path,
             "idx":idx,
             "sim_inputs":inputs,
@@ -1201,8 +1206,63 @@ if __name__ == "__main__":
     #     train_size=29500,
     #     test_size=500,
     #     epochs=1000,
-    #     tol=1e-18,
-    #     learning_rate=0.0001,
+    #     tol=float("nan"),
+    #     learning_rate=0.001,
     #     save_model=False,
     #     monitor=True
+    # )
+
+    # main(
+    #     data_folder="simdata_train03",
+    #     train_size=9500,
+    #     test_size=500,
+    #     epochs=3000,
+    #     tol=float("nan"),
+    #     learning_rate=0.001,
+    #     save_model=False,
+    #     monitor=True
+    # )
+
+    # main(
+    #     data_folder="simdata_train04",
+    #     train_size=9500,
+    #     test_size=500,
+    #     epochs=1000,
+    #     tol=float("nan"),
+    #     learning_rate=0.001,
+    #     save_model=False,
+    #     monitor=True
+    # )
+
+    # main(
+    #     data_folder="simdata_train05",
+    #     train_size=9500,
+    #     test_size=500,
+    #     epochs=10000,
+    #     tol=float("nan"),
+    #     learning_rate=0.001,
+    #     save_model=True,
+    #     monitor=True
+    # )
+
+    # main(
+    #     data_folder="simdata_train06",
+    #     train_size=9500,
+    #     test_size=500,
+    #     epochs=2000,
+    #     tol=float("nan"),
+    #     learning_rate=0.001,
+    #     save_model=False,
+    #     monitor=True
+    # )
+
+    # main(
+    #     data_folder="simdata_train07",
+    #     train_size=9500,
+    #     test_size=500,
+    #     epochs=2000,
+    #     tol=float("nan"),
+    #     learning_rate=0.001,
+    #     save_model=False,
+    #     monitor=True,
     # )
