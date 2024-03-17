@@ -9,7 +9,8 @@ change in the function:
 - <data_folder>: The folder to fetch evaluation data from.
 '''
 
-
+import os
+# os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 import torch
 import numpy as np
@@ -18,7 +19,6 @@ from scipy.stats import (
     ttest_ind
 )
 import matplotlib.pyplot as plt
-import os
 
 from simulate_spectra import sim_pals
 
@@ -276,9 +276,13 @@ def evaluate_model(
     # if output prediction comes as multiple tensors in tuple. Map columns in
     # the prediction tensors to how they are in the original, true output "y"
     if "idx" in train_dict:
-        cols_n = sum(map(len, train_dict["idx"]))
+
+        idx_obj = train_dict["idx"]
+        if isinstance(idx_obj, dict):
+            idx_obj = tuple(idx_obj.values())
+
         col_index = []
-        for idx_list in train_dict["idx"]:
+        for idx_list in idx_obj:
             col_index += idx_list
 
         # sort into correct index order
@@ -329,14 +333,20 @@ def evaluate_gnll_model(
     # if output prediction comes as multiple tensors in tuple. Map columns in
     # the prediction tensors to how they are in the original, true output "y"
     if "idx" in train_dict:
-        cols_n = sum(map(len, train_dict["idx"]))
+
+        idx_obj = train_dict["idx"]
+        if isinstance(idx_obj, dict):
+            idx_obj = tuple(idx_obj.values())
+
         col_index = []
-        for idx_list in train_dict["idx"]:
+        for idx_list in idx_obj:
             col_index += idx_list
 
         # sort into correct index order
         pred_to_y_conversion = [val[0] for val in sorted(enumerate(col_index), key=lambda x: x[1])]
         # use sorted indices to get the correct order
+        # print(pred_to_y_conversion)
+        # print(torch.column_stack((normal, softmax)).size())
         pred = torch.column_stack((normal, softmax))[:, pred_to_y_conversion]
         pred_var = torch.column_stack((normal_var, softmax_var))[:, pred_to_y_conversion]
 
@@ -586,5 +596,10 @@ if __name__ == "__main__":
 
     # main(
     #     data_folder="simdata_evaluate07",
+    #     verbose=False
+    # )
+
+    # main(
+    #     data_folder="simdata_evaluate01",
     #     verbose=False
     # )

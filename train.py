@@ -707,7 +707,7 @@ def define_mse_model(
 
     # return also the index correspondence for finding the correct
     # corresponendences from the true output
-    return model, {"normal":idx}
+    return model, {"normal":lifetime_idx, "softmax":softmax_idx}
 
 def define_gnll_model(
     true_size,
@@ -1313,17 +1313,17 @@ if __name__ == "__main__":
     # right now it seems that the loss on the intensities and background
     # is far less than on the lifetimes, yet the R2 is worse for the
     # former
-    main(
-        data_folder="simdata_train01",
-        train_size=39500,
-        test_size=500,
-        epochs=500,
-        tol=float("nan"),
-        learning_rate=0.001,
-        save_model=False,
-        monitor=True,
-        # model_state_checkpoint="model20240309181833.pt"
-    )
+    # main(
+    #     data_folder="simdata_train01",
+    #     train_size=3500,
+    #     test_size=500,
+    #     epochs=500,
+    #     tol=float("nan"),
+    #     learning_rate=0.001,
+    #     save_model=False,
+    #     monitor=True,
+    #     # model_state_checkpoint="model20240309181833.pt"
+    # )
 
 
     # main(
@@ -1414,3 +1414,25 @@ if __name__ == "__main__":
     #     save_model=False,
     #     monitor=True,
     # )
+
+    # main(
+    #     data_folder="simdata_train08",
+    #     train_size=9500,
+    #     test_size=499,
+    #     epochs=1000,
+    #     tol=float("nan"),
+    #     learning_rate=0.001,
+    #     save_model=True,
+    #     monitor=True,
+    # )
+
+    main(
+        data_folder="simdata_train08",
+        train_size=9500,
+        test_size=499,
+        epochs=1000,
+        tol=float("nan"),
+        learning_rate=0.001,
+        save_model=True,
+        monitor=True,
+    )
