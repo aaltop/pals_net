@@ -660,7 +660,7 @@ def define_mse_model(
     if not (state_dict is None):
         model = PALSModel.load_state_dict(state_dict)
         model.logging_info()
-        return model, idx
+        return model, {"normal":lifetime_idx, "softmax":softmax_idx}
     
     idx = [lifetime_idx, softmax_idx]
     network = PALS_MSE(
@@ -764,7 +764,7 @@ def define_gnll_model(
     if not (model_state_dict is None):
         model = PALSModel.load_state_dict(model_state_dict)
         model.logging_info()
-        return model, [lifetime_idx, softmax_idx]
+        return model, {"normal":lifetime_idx, "softmax":softmax_idx}
 
     linear = torch.nn.LazyLinear
     conv = Conv1
