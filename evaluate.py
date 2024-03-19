@@ -572,11 +572,11 @@ def main(
 
 if __name__ == "__main__":
 
-    main(
-        data_folder="simdata_evaluate01",
-        # model_file="model20240307171529.pt",
-        verbose=False
-    )
+    # main(
+    #     data_folder="simdata_evaluate01",
+    #     # model_file="model20240307171529.pt",
+    #     verbose=False
+    # )
 
     # main(
     #     data_folder="simdata_evaluate03",
@@ -599,7 +599,7 @@ if __name__ == "__main__":
     #     verbose=False
     # )
 
-    # main(
-    #     data_folder="simdata_evaluate01",
-    #     verbose=False
-    # )
+    main(
+        data_folder="simdata_evaluate10",
+        verbose=False
+    )

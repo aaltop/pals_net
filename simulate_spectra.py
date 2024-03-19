@@ -627,10 +627,11 @@ def random_input_prm(rng=None):
     # TODO: replace with Dirichlet distribution?
     intensities = [0]*3
     # intensities[-1] = rng.uniform(0.001,0.04)*remaining
-    intensities[-1] = rng.uniform(0.015,0.025)*remaining
+    intensities[-1] = rng.uniform(0.001,0.04)*remaining
     remaining -= intensities[-1]
-    intensities[0] = rng.uniform(0.725, 0.775)*remaining
+    intensities[0] = rng.uniform(0.60, 0.90)*remaining
     intensities[1] = remaining-intensities[0]
+
 
     components = list(zip(lifetimes,intensities))
 
@@ -754,8 +755,8 @@ def main():
     print("Starting to write simulations...")
     start = time.time()
     write_many_simulations(
-        sims_to_write=9990,
-        folder_name="simdata_train09",
+        sims_to_write=10000,
+        folder_name="simdata_train10",
         input_prm=None,
         repetition_count=1
     )

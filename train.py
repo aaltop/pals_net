@@ -1426,13 +1426,36 @@ if __name__ == "__main__":
     #     monitor=True,
     # )
 
-    main(
-        data_folder="simdata_train08",
-        train_size=9500,
-        test_size=499,
-        epochs=1000,
-        tol=float("nan"),
-        learning_rate=0.001,
-        save_model=True,
-        monitor=True,
-    )
+    # main(
+    #     data_folder="simdata_train08",
+    #     train_size=9500,
+    #     test_size=499,
+    #     epochs=1000,
+    #     tol=float("nan"),
+    #     learning_rate=0.001,
+    #     save_model=True,
+    #     monitor=True,
+    # )
+
+    # main(
+    #     data_folder="simdata_train09",
+    #     train_size=4500,
+    #     test_size=500,
+    #     epochs=3000,
+    #     tol=float("nan"),
+    #     learning_rate=0.001,
+    #     save_model=True,
+    #     monitor=True,
+    # )
+
+    # main(
+    #     data_folder="simdata_train10",
+    #     train_size=29500,
+    #     test_size=500,
+    #     epochs=3000,
+    #     tol=float("nan"),
+    #     learning_rate=0.001,
+    #     save_model=True,
+    #     monitor=True,
+    #     model_state_checkpoint=""
+    # )
