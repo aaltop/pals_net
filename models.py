@@ -241,12 +241,11 @@ class PALS_GNLL(PALS_MSE):
         normal_idx, normal_var_idx, softmax_idx, softmax_var_idx = self.idx
 
         softplus = torch.nn.Softplus(beta=10)
-        A = 2.3
 
         normal = x[:, normal_idx]
-        normal_var = A*softplus(x[:, normal_var_idx])
+        normal_var = softplus(x[:, normal_var_idx])
         softmaxxed = self.softmax(x[:, softmax_idx])
-        softmaxxed_var = A*softplus(x[:, softmax_var_idx])
+        softmaxxed_var = softplus(x[:, softmax_var_idx])
 
         output = PALS_output(
             MeanAndVar(normal, normal_var), 
@@ -277,13 +276,13 @@ class PALS_GNLL_Intensities(PALS_GNLL):
         softmax_idx, var_idx = self.idx
 
         softplus = torch.nn.Softplus(beta=10)
-        A = 2.3
 
         sigm = torch.nn.Sigmoid()
 
         # softmaxxed = self.softmax(x[:, softmax_idx])
-        softmaxxed = sigm(x[:, softmax_idx])
-        softmaxxed_var = A*softplus(x[:, var_idx])
+        # softmaxxed = sigm(x[:, softmax_idx])
+        softmaxxed = x[:, softmax_idx]
+        softmaxxed_var = softplus(x[:, var_idx])
         
         return [softmaxxed, softmaxxed_var]
 

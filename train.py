@@ -1133,7 +1133,7 @@ def main(
                 return True
         return False
     
-    # words = ("lifetime", "bkg", "3", "2")
+    # words = ["lifetime"]
     # y_train = np.array([comp for comp,name in zip(y_train.T, comp_names) if not _in(words, name)]).T
     # y_test = np.array([comp for comp,name in zip(y_test.T, comp_names) if not _in(words, name)]).T
 
@@ -1243,12 +1243,8 @@ def main(
     # if values in y_test are larger than in y_train, as the idea
     # would be to normalise to one?)
     output_processing = proc(y_train, no_processing_idx=softmax_idx)
-    output_processing = proc(**output_processing.state_dict())
-    # #don't normalise intensities or background
     y_train = output_processing.process(y_train)
     y_test = output_processing.process(y_test)
-
-
 
 
     # Do training
@@ -1313,17 +1309,17 @@ if __name__ == "__main__":
     # right now it seems that the loss on the intensities and background
     # is far less than on the lifetimes, yet the R2 is worse for the
     # former
-    # main(
-    #     data_folder="simdata_train01",
-    #     train_size=3500,
-    #     test_size=500,
-    #     epochs=500,
-    #     tol=float("nan"),
-    #     learning_rate=0.001,
-    #     save_model=False,
-    #     monitor=True,
-    #     # model_state_checkpoint="model20240309181833.pt"
-    # )
+    main(
+        data_folder="simdata_train01",
+        train_size=19500,
+        test_size=500,
+        epochs=3000,
+        tol=float("nan"),
+        learning_rate=0.001,
+        save_model=False,
+        monitor=True,
+        # model_state_checkpoint="model20240309181833.pt"
+    )
 
 
     # main(
