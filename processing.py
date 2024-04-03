@@ -192,6 +192,11 @@ class DivByMax(AbstractOutputProcessing):
         else:
             raise TypeError("One of <train_output>, <train_output_col_max> should be a suitable PyTorch tensor.")
         
+        max_col = self.train_output_col_max
+        # set any zero max values to one for the division
+        zeros = torch.zeros(size=[len(max_col)]).to(max_col.device)
+        self.train_output_col_max[torch.isclose(max_col, zeros)] = 1.0
+        
         if not (no_processing_idx is None):
             self.no_processing_idx = no_processing_idx
             self.train_output_col_max[no_processing_idx] = 1.0
@@ -246,6 +251,11 @@ class SubMinDivByMax(AbstractOutputProcessing):
             self.train_output_col_max = (train_output-self.train_output_col_min).amax(dim=0)
         else:
             raise TypeError("One of <train_output>, <train_output_col_max> should be a suitable PyTorch tensor.")
+        
+        max_col = self.train_output_col_max
+        # set any zero max values to one for the division
+        zeros = torch.zeros(size=[len(max_col)]).to(max_col.device)
+        self.train_output_col_max[torch.isclose(max_col, zeros)] = 1.0
         
         if not (no_processing_idx is None):
             self.no_processing_idx = no_processing_idx
