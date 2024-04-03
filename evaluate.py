@@ -404,7 +404,8 @@ def main(
         data_size=None,
         model_folder=None,
         model_file=None,
-        verbose=False
+        verbose=False,
+        background=True
 
 ):
     '''
@@ -432,6 +433,11 @@ def main(
     ### verbose : boolean, default False
         Whether to have a verbose output. Verbose output includes the
         corresponding log file when possible.
+
+    ### background : boolean
+        Whether there is a background included in the predictions.
+        Currently only used to exclude background from the main plot.
+    
     '''
 
     # Load up the model data
@@ -511,10 +517,16 @@ def main(
     true_means = y.mean(dim=0)
     residual_normalised = residual/y
 
-    axes_mosaic = [
-        ["lifetime 1", "intensity 1", "lifetime 2", "intensity 2"],
-        ["lifetime 3", "intensity 3", "background", "background"]
-    ]
+    if background:
+        axes_mosaic = [
+            ["lifetime 1", "intensity 1", "lifetime 2", "intensity 2"],
+            ["lifetime 3", "intensity 3", "background", "background"]
+        ]
+    else:
+        axes_mosaic = [
+            ["lifetime 1", "intensity 1", "lifetime 2", "intensity 2"],
+            ["lifetime 3", "lifetime 3", "intensity 3", "intensity 3"]
+        ]
 
     name_to_idx = {
         "lifetime 1":0,
@@ -600,6 +612,6 @@ if __name__ == "__main__":
     # )
 
     main(
-        data_folder="simdata_evaluate10",
-        verbose=False
+        data_folder="simdata_evaluate13",
+        verbose=False,
     )
