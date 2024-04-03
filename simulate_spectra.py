@@ -118,11 +118,13 @@ def sim_coinc(num_counts, lifetime, sigma_start, sigma_stop, offset, rng=None):
 
     starts = np.zeros(num_counts)
     # Broaden detection time by detector's time response
-    detector_response(starts, sigma_start, rng)
+    if  sigma_start > 0:
+        detector_response(starts, sigma_start, rng)
 
     stops = rng.exponential(lifetime, num_counts)
     # # Broaden detection time by detector's time response
-    detector_response(stops, sigma_stop, rng)
+    if sigma_stop > 0:
+        detector_response(stops, sigma_stop, rng)
     events = stops - starts + offset
 
     return events
