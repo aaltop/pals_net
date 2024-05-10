@@ -31,7 +31,6 @@ import os
 from inspect import getsource
 
 import numpy as np
-import pandas as pd
 
 _rng = np.random.default_rng()
 
@@ -447,115 +446,6 @@ def write_simulation_data(
     # to write to
     return file_index
 
-def write_simulation_data_old1(
-    input_prm:dict,
-    folder_name:str=None,
-    file_name_beginning:str=None,
-    file_index:int=None,
-    rng=None
-) -> int:
-    '''
-    Write simulation data to a file.
-
-    Pararameters
-    ------------
-
-    ### input_prm : dict
-        Input parameters for function sim_pals.
-
-    ### folder_name : str, default None
-        Name of the folder to write data into.
-        If not specified, defaults to "simdata"
-        in current working directory.
-
-    ### file_name_beginning : str, default None
-        Name of file to write data into. Final file
-        will be "<file_name_beginning>_<num>.pals", where
-        <num> is either <file_index> or any next available index
-        with zero padding. 
-        
-        If None, defaults to "simdata".
-
-    ### file_index : int, default None
-        The number of the file to try and write the data into. If
-        the corresponding file is already used, will try the next
-        files (following indices) until available or max index is reached.
-
-        If None, will try each index in order starting from 1.
-
-    Returns
-    -------
-
-    ### file_index : int
-        the number of the file that was written to
-        
-    '''
-
-    if rng is None:
-        rng = _rng
-
-    # determine the folder to write into,
-    # create it if need be
-
-    if folder_name is None:
-        folder_name = "simdata"
-    cwd = os.getcwd()
-    folder_path = os.path.join(cwd,folder_name)
-
-    if not (os.path.isdir(folder_path)):
-        os.mkdir(folder_path)
-
-    # automatically determine the file name (could probably use a
-    # bisect, but might not have that big an effect)
-    if file_index is None:
-        file_index = 1
-    file_name_beginning = "simdata"
-    file_name = "{0}_{1:05}.pals"
-    while True:
-        final_file_name = file_name.format(file_name_beginning, file_index)
-        file_path = os.path.join(
-            folder_path, final_file_name)
-        
-        if os.path.isfile(file_path):
-            file_index += 1
-            if file_index >= 100_000:
-                raise ValueError(f"file_index too high")
-            continue
-        break
-
-    # generate simulation data, set in
-    # dataframe
-    time_ps, counts = sim_pals(input_prm, rng)
-    pd_data = {"time_ps":time_ps, "counts":counts}
-    df = pd.DataFrame(data=pd_data, dtype=np.float64)
-
-    # write simulation data
-    with open(file_path, "w", encoding="utf-8") as f:
-        df.to_csv(
-            path_or_buf=f,
-            sep = " ",
-            float_format="{:.18e}".format,
-            index=False,
-            lineterminator="\n"
-        )
-
-    # Don't want to have simdata without
-    # the corresponding metadata. Would
-    # be much easier to just write metadata
-    # in the same file as the data, though.
-    try:
-        write_sim_metadata(
-            input_prm,
-            final_file_name,
-            folder_path)
-        
-        return file_index
-    except BaseException as e:
-        # maybe should write to stderr?
-        print("\nException occured while writing metadata. Deleting simdata file.\n")
-        os.remove(file_path)
-        raise e
-
 
 def plot_sim_data(input_prm=None, rng=None):
     import matplotlib.pyplot as plt
@@ -611,27 +501,28 @@ def random_input_prm(rng=None):
 
 
     # 800_000, 1_200_000
-    num_events = int(rng.uniform(200_000, 1_100_000))
+    num_events = int(rng.uniform(800_000, 1_200_000))
     # num_events = 5_000_000
 
-    bkg = (1_000_000*0.005)/num_events
+    bkg = rng.uniform(0.002, 0.01)#(1_000_000*0.005)/num_events
+    # bkg = 0.001
     # remaining "intensity", how much of the num_events are still unspecified
     remaining = 1-bkg
 
     
     lifetimes = [
-        245+rng.uniform(low=-50,high=50),
-        400+rng.uniform(low=-80,high=80),
-        1500+rng.uniform(low=-300,high=300)
+        100+rng.uniform(low=-20,high=20),
+        350+rng.uniform(low=-70,high=70),
+        2000+rng.uniform(low=-200,high=200)
     ]
 
     
     # TODO: replace with Dirichlet distribution?
     intensities = [0]*3
     # intensities[-1] = rng.uniform(0.001,0.04)*remaining
-    intensities[-1] = rng.uniform(0.001,0.04)*remaining
+    intensities[-1] = rng.uniform(0.02,0.06)*remaining
     remaining -= intensities[-1]
-    intensities[0] = rng.uniform(0.60, 0.90)*remaining
+    intensities[0] = rng.uniform(0.70, 0.85)*remaining
     intensities[1] = remaining-intensities[0]
 
 
@@ -639,13 +530,14 @@ def random_input_prm(rng=None):
 
     offset = round(1000 + rng.uniform(low=0, high=100))
 
+    sigma_start = sigma_stop = 65
     input_prm = {"num_events": num_events,
                  "bkg": bkg,
                  "components": components,
                  "bin_size": 25,
-                 "time_gate": 10_000,
-                 "sigma_start": 65,
-                 "sigma_stop": 65,
+                 "time_gate": 15_000,
+                 "sigma_start": sigma_start,
+                 "sigma_stop": sigma_stop,
                  "offset": offset}
     
 
@@ -757,8 +649,8 @@ def main():
     print("Starting to write simulations...")
     start = time.time()
     write_many_simulations(
-        sims_to_write=10000,
-        folder_name="simdata_train10",
+        sims_to_write=1000,
+        folder_name="simdata_eval11",
         input_prm=None,
         repetition_count=1
     )
