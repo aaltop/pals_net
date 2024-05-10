@@ -598,133 +598,13 @@ def plot_training_results(losses, r2_scores):
     plt.show()
 
 
-def define_mlp(input_size:int, output_size:int, hidden_layer_sizes=None) -> MLP:
-    '''
-    Create the multilayer perceptron.
-
-    Parameters
-    ----------
-
-    ### input_size : int
-    
-    ### output_size : int
-
-    ### hidden_layer_sizes : list of ints, default None
-        The sizes of layers in between the input and output layer.
-        If None, uses a "good" value.
-
-    Returns
-    -------
-
-    ### model : MLP
-        The model.
-    '''
-
-    layer_sizes = []
-    layer_sizes.append(input_size)
-    # decrease hidden layer size each layer 
-    hidden_layer_sizes = [150-i*15 for i in range(10)]
-    # hidden_layer_sizes = [150]*10
-    layer_sizes.extend(hidden_layer_sizes)
-    layer_sizes.append(output_size)
-
-    return MLP(layer_sizes)
-
-def define_mse_model(
-    output_size,
-    learning_rate=None,
-    device=None,
-    dtype=None,
-    state_dict=None,
-):
-
-
-    linear = torch.nn.LazyLinear
-    conv = Conv1
-    pool = torch.nn.MaxPool1d
-
-    layers = [
-        (conv(1,3,5,5), True),
-        (conv(3,27,3,), True),
-        (torch.nn.Flatten(), False),
-        (linear(output_size*9), True),
-        (linear(output_size), False),
-    ]
-
-    # "components" contains lifetime-intensity pairs, "bkg" should
-    # scalar at the end of a row
-    # these should be the values that correspond to those in the
-    # "true" output
-    lifetime_idx = list(range(0,output_size-1,2))
-    intensity_idx = list(range(1,output_size-1,2))
-    bkg_idx = output_size-1
-    softmax_idx = intensity_idx + [bkg_idx]
-
-    class PALSModel(Model):
-
-        def transform_true(self, true):
-            
-            return (true[:,lifetime_idx], true[:,softmax_idx])
-        
-    if not (state_dict is None):
-        model = PALSModel.load_state_dict(state_dict)
-        model.logging_info()
-        return model, {"normal":lifetime_idx, "softmax":softmax_idx}
-    
-    idx = [lifetime_idx, softmax_idx]
-    network = PALS_MSE(
-        layers,
-        idx
-    )
-
-
-    if learning_rate is None:
-        learning_rate = 0.0001
-
-    optim = torch.optim.Adam(network.parameters(), lr=learning_rate)
-    # TODO: check out CosineAnnealingWarmRestarts
-    sched = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optim,
-        factor=0.9,
-        patience=10,
-        verbose=True,
-        min_lr=0.0005
-    )
-    sched = None
-
-    loss_kwargs = {
-    }
-    loss = torch.nn.MSELoss(**loss_kwargs)
-        
-    
-
-    model = PALSModel(
-        network,
-        optim,
-        loss,
-        loss_kwargs,
-        scheduler=sched,
-        device=device,
-        dtype=dtype
-    )
-
-    model.logging_info()
-    # state_dict() doesn't seem to work for the losses, so need to do
-    # this
-    logging.info("Loss kwargs:")
-    logging.info(loss_kwargs)
-
-    # return also the index correspondence for finding the correct
-    # corresponendences from the true output
-    return model, {"normal":lifetime_idx, "softmax":softmax_idx}
-
 def define_gnll_model(
     true_size,
     learning_rate=None,
     device=None,
     dtype=None,
     model_state_dict=None,
-    network_state_dict=None
+    network_state_dict=None,
 ):
     '''
     Parameters
@@ -744,6 +624,7 @@ def define_gnll_model(
     intensity_idx = list(range(1,true_size-1,2))
     bkg_idx = true_size-1
     softmax_idx = intensity_idx + [bkg_idx]
+
     # variance does not have correspondence in the "true" output,
     # but should the same size as the true output
     lifetime_var_idx = list(range(true_size, output_size-1, 2))
@@ -758,11 +639,11 @@ def define_gnll_model(
             return (true[:,lifetime_idx], true[:,softmax_idx])
         
         def loss_func(self, pred, true):
-            
+
             # assume pred is (mean, var)
             _input, var = pred
 
-            r2_loss = (1-r2_score(_input, true)).sum()
+            r2_loss = ((1-r2_score(_input, true))).sum()
 
             return r2_loss + self._loss_func(_input, true, var)
         
@@ -778,13 +659,17 @@ def define_gnll_model(
     linear = torch.nn.LazyLinear
     conv = Conv1
     pool = torch.nn.MaxPool1d
+    # pool = torch.nn.AvgPool1d
 
-    # TODO: test maxpool?
     layers = [
         (conv(1,output_size,5,5), True),
-        (pool(4,4), False),
+        # (pool(4,4), False),
+        (conv(output_size, output_size, 4,4), False),
         (conv(output_size,output_size*3,3,), True),
-        # (conv(3,9,3,), True),
+        # (conv(1,27,2,2), True),
+        # (pool(4,4), False),
+        # (conv(27,9,3,), True),
+        # (conv(9,3,3,), True),
         # (conv(9,27,3), True),
         (torch.nn.Flatten(), False),
         (linear(output_size*9), True),
@@ -908,27 +793,32 @@ def define_gnll_model_intensities(
     if not (model_state_dict is None):
         model = PALSModel.load_state_dict(model_state_dict)
         model.logging_info()
-        return model, softmax_idx
+        return model, {"softmax":softmax_idx}
 
     linear = torch.nn.LazyLinear
     conv = Conv1
     pool = torch.nn.MaxPool1d
 
-    # TODO: test maxpool?
+    output_size = 6
+
     layers = [
         (conv(1,output_size,5,5), True),
-        (pool(4,4), False),
+        # (pool(4,4), False),
+        (conv(output_size, output_size, 4,4), False),
         (conv(output_size,output_size*3,3,), True),
-        # (conv(3,9,3,), True),
+        # (conv(1,27,2,2), True),
+        # (pool(4,4), False),
+        # (conv(27,9,3,), True),
+        # (conv(9,3,3,), True),
         # (conv(9,27,3), True),
         (torch.nn.Flatten(), False),
         (linear(output_size*9), True),
         # (linear(output_size*3), True),
-        (linear(output_size), False),
+        (linear(2), False),
     ]
 
     if not (network_state_dict is None):
-        network = load_model.load_network(network_state_dict, PALS_GNLL)
+        network = load_model.load_network(network_state_dict, PALS_GNLL_Intensities)
     else:
         network = PALS_GNLL_Intensities(
             layers,
@@ -985,6 +875,109 @@ def define_gnll_model_intensities(
     # return also the index correspondence for finding the correct
     # corresponendences from the true output
     return model, {"softmax":softmax_idx}
+
+
+def define_gnll_model_single(
+    learning_rate=None,
+    device=None,
+    dtype=None,
+    model_state_dict=None,
+    network_state_dict=None
+):
+    '''
+    Parameters
+    ----------
+
+    ### true_size
+        size (number) of the "true" values, values to be predicted.
+    '''
+
+    output_size = 2
+
+    class PALSModel(Model):
+
+        def transform_true(self, true):
+            
+            return true
+        
+        def loss_func(self, pred, true):
+            
+            # assume pred is (mean, var)
+            _input, var = pred
+
+            r2_loss = (1-r2_score(_input, true)).sum()
+
+            return r2_loss + self._loss_func(_input, true, var)
+        
+        def get_predictions(self, x):
+            
+            return x[0]
+    
+    if not (model_state_dict is None):
+        model = PALSModel.load_state_dict(model_state_dict)
+        model.logging_info()
+        return model, {"softmax":[]}
+
+    linear = torch.nn.LazyLinear
+    conv = Conv1
+
+    output_size = 6
+
+    layers = [
+        (conv(1,output_size,5,5), True),
+        # (pool(4,4), False),
+        (conv(output_size, output_size, 4,4), False),
+        (conv(output_size,output_size*3,3,), True),
+        # (conv(1,27,2,2), True),
+        # (pool(4,4), False),
+        # (conv(27,9,3,), True),
+        # (conv(9,3,3,), True),
+        # (conv(9,27,3), True),
+        (torch.nn.Flatten(), False),
+        (linear(output_size*9), True),
+        # (linear(output_size*3), True),
+        (linear(2), False),
+    ]
+
+    if not (network_state_dict is None):
+        network = load_model.load_network(network_state_dict, PALS_GNLL_Single)
+    else:
+        network = PALS_GNLL_Single(
+            layers,
+            [[0], [1]]
+        )
+
+    if learning_rate is None:
+        learning_rate = 0.0001
+
+    optim = torch.optim.Adam(network.parameters(), lr=learning_rate)
+
+    sched = None
+
+    loss_kwargs = {
+    }
+    loss = torch.nn.GaussianNLLLoss(**loss_kwargs)
+        
+    
+    model = PALSModel(
+        network,
+        optim,
+        loss,
+        loss_kwargs,
+        scheduler=sched,
+        device=device,
+        dtype=dtype
+    )
+
+    model.logging_info()
+    # state_dict() doesn't seem to work for the losses, so need to do
+    # this
+    logging.info("Loss kwargs:")
+    logging.info(loss_kwargs)
+
+    # return also the index correspondence for finding the correct
+    # corresponendences from the true output
+    return model, {"softmax":[]}
 
 def setup_logger(date_str):
 
@@ -1142,7 +1135,7 @@ def main(
                 return True
         return False
     
-    # words = ["lifetime"]
+    # words = ["lifetime", "bkg", "1", "3"]
     # y_train = np.array([comp for comp,name in zip(y_train.T, comp_names) if not _in(words, name)]).T
     # y_test = np.array([comp for comp,name in zip(y_test.T, comp_names) if not _in(words, name)]).T
 
@@ -1190,13 +1183,24 @@ def main(
 
     print("Processed input...")
 
+    print("x_train min:", x_train.min())
+    print("x_test min:", x_test.min())
+
     y_train = convert_to_tensor(y_train, device=dev, dtype=dtype)
     y_test = convert_to_tensor(y_test, device=dev, dtype=dtype)
+
+    # comp_idx = 2
+    # y_train = y_train[:,comp_idx].reshape((-1,1))
+    # y_test = y_test[:,comp_idx].reshape((-1,1))
 
     # for training on just one component
     # comp = 4
     # y_train = y_train[:,comp].reshape((-1,1))
     # y_test = y_test[:,comp].reshape((-1,1))
+
+    print("Component variation:")
+    print(y_train.amin(dim=0))
+    print(y_train.amax(dim=0))
 
     print("Processed output.\n")
 
@@ -1206,8 +1210,6 @@ def main(
 
     # Define the model
     # --------------------------------------
-
-    model_class = PALS_GNLL
 
     if isinstance(network_state_checkpoint, str):
         val = network_state_checkpoint
@@ -1225,28 +1227,20 @@ def main(
     else:
         model_state = None
 
-    if model_class is PALS_MSE:
-        model, idx = define_mse_model(
-            output_size, 
-            learning_rate, 
-            device=dev, 
-            dtype=dtype,
-            model_state_dict=model_state,
-            network_state_dict=network_state,
-        )
-    elif model_class is PALS_GNLL:
-        model, idx = define_gnll_model(
-            output_size,
-            learning_rate,
-            device=dev,
-            dtype=dtype,
-            model_state_dict=model_state,
-            network_state_dict=network_state,
-        )
+    model, idx = define_gnll_model(
+        output_size,
+        learning_rate,
+        device=dev,
+        dtype=dtype,
+        model_state_dict=model_state,
+        network_state_dict=network_state,
+    )
 
     # ======================================
 
     softmax_idx = idx["softmax"]
+    if len(softmax_idx) == 0:
+        softmax_idx = None
     proc = SubMinDivByMax
     # normalise outputs based on train output (could be problematic
     # if values in y_test are larger than in y_train, as the idea
@@ -1306,6 +1300,8 @@ def main(
         save_model_state_dict(whole_state_dict,date_str)
     # ======================================
 
+    # print(model.logging_info())
+
     plot_training_results(losses, r2_scores)
 
 
@@ -1314,153 +1310,33 @@ if __name__ == "__main__":
 
     torch.manual_seed(1000)
 
-    # TODO: might want to try using a better loss,
+    # might want to try using a better loss,
     # right now it seems that the loss on the intensities and background
     # is far less than on the lifetimes, yet the R2 is worse for the
     # former
+
+    # main(
+    #     data_folder="simdata_train14_no_noise",
+    #     train_size=19000,
+    #     test_size=1000,
+    #     epochs=3000,
+    #     tol=float("nan"),
+    #     learning_rate=0.001,
+    #     save_model=True,
+    #     monitor=True,
+    #     # model_state_checkpoint="model20240413172018.pt"
+    # )
+
+
+
     main(
-        data_folder="simdata_train01",
-        train_size=19500,
-        test_size=500,
-        epochs=3000,
+        data_folder="simdata_train11",
+        train_size=3000,
+        test_size=1000,
+        epochs=1000,
         tol=float("nan"),
         learning_rate=0.001,
-        save_model=False,
+        save_model=True,
         monitor=True,
-        # model_state_checkpoint="model20240309181833.pt"
+        # model_state_checkpoint="model20240420173757.pt"
     )
-
-
-    # main(
-    #     data_folder="simdata_train02",
-    #     train_size=1900,
-    #     test_size=200,
-    #     epochs=100,
-    #     tol=1e-8,
-    #     learning_rate=0.001,
-    #     save_model=False
-    # )
-
-
-
-    # main(
-    #     data_folder="temp_file",
-    #     train_size=900,
-    #     test_size=100,
-    #     epochs=300,
-    #     tol=float("nan"),
-    #     learning_rate=0.0001,
-    #     save_model=False,
-    #     monitor=True
-    # )
-
-    # main(
-    #     data_folder="temp_file_int",
-    #     train_size=29500,
-    #     test_size=500,
-    #     epochs=1000,
-    #     tol=float("nan"),
-    #     learning_rate=0.001,
-    #     save_model=False,
-    #     monitor=True
-    # )
-
-    # main(
-    #     data_folder="simdata_train03",
-    #     train_size=9500,
-    #     test_size=500,
-    #     epochs=3000,
-    #     tol=float("nan"),
-    #     learning_rate=0.001,
-    #     save_model=False,
-    #     monitor=True
-    # )
-
-    # main(
-    #     data_folder="simdata_train04",
-    #     train_size=9500,
-    #     test_size=500,
-    #     epochs=1000,
-    #     tol=float("nan"),
-    #     learning_rate=0.001,
-    #     save_model=False,
-    #     monitor=True
-    # )
-
-    # main(
-    #     data_folder="simdata_train05",
-    #     train_size=9500,
-    #     test_size=500,
-    #     epochs=10000,
-    #     tol=float("nan"),
-    #     learning_rate=0.001,
-    #     save_model=True,
-    #     monitor=True
-    # )
-
-    # main(
-    #     data_folder="simdata_train06",
-    #     train_size=9500,
-    #     test_size=500,
-    #     epochs=2000,
-    #     tol=float("nan"),
-    #     learning_rate=0.001,
-    #     save_model=False,
-    #     monitor=True
-    # )
-
-    # main(
-    #     data_folder="simdata_train07",
-    #     train_size=9500,
-    #     test_size=500,
-    #     epochs=2000,
-    #     tol=float("nan"),
-    #     learning_rate=0.001,
-    #     save_model=False,
-    #     monitor=True,
-    # )
-
-    # main(
-    #     data_folder="simdata_train08",
-    #     train_size=9500,
-    #     test_size=499,
-    #     epochs=1000,
-    #     tol=float("nan"),
-    #     learning_rate=0.001,
-    #     save_model=True,
-    #     monitor=True,
-    # )
-
-    # main(
-    #     data_folder="simdata_train08",
-    #     train_size=9500,
-    #     test_size=499,
-    #     epochs=1000,
-    #     tol=float("nan"),
-    #     learning_rate=0.001,
-    #     save_model=True,
-    #     monitor=True,
-    # )
-
-    # main(
-    #     data_folder="simdata_train09",
-    #     train_size=4500,
-    #     test_size=500,
-    #     epochs=3000,
-    #     tol=float("nan"),
-    #     learning_rate=0.001,
-    #     save_model=True,
-    #     monitor=True,
-    # )
-
-    # main(
-    #     data_folder="simdata_train10",
-    #     train_size=29500,
-    #     test_size=500,
-    #     epochs=3000,
-    #     tol=float("nan"),
-    #     learning_rate=0.001,
-    #     save_model=True,
-    #     monitor=True,
-    #     model_state_checkpoint=""
-    # )
