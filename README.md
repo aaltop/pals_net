@@ -1,6 +1,6 @@
 # PALS Tool
 
-A tool to train a PyTorch Multilayer Perceptron (MLP) on simulated 
+A tool to train a PyTorch Convolutional Neural Network (CNN) on simulated 
 Positron Annihilation Lifetime Spectroscopy (PALS) spectra to be able 
 to predict the components of real PALS experiments' spectra.
 
@@ -15,14 +15,13 @@ learning approaches.
 
 The general idea of the approach the tool takes is to simulate many
 PALS spectra based on potential features of a spectrum, and train
-the Multilayer Perceptron on the simulated data. The training data
+the CNN on the simulated data. The training data
 could just as well be data from real experiments, but the amount and
 variety of data needed to train a good model is not necessarily
 readily available.
 
 In its current state, the tool has been tested on simulated data and
-found to be potentially viable for analysing PALS spectra, but still
-needs more work, both with regard to the code and the used model.
+found to be potentially viable for analysing PALS spectra.
 
 ## Getting Started
 
@@ -43,8 +42,6 @@ installation through [conda environment and package manager](https://docs.conda.
 
 - [SciPy](https://scipy.org/)
 
-- [pandas](https://pandas.pydata.org/)
-
 ### Usage
 
 Once all the dependencies are installed, there are essentially three
@@ -60,13 +57,3 @@ Each file has a module docstring that contains instructions for running
 the file, and where to look if changes to the process are wanted. A quick
 look through the files is recommended before running anything, but 
 nothing entirely unexpected should happen.
-
-## Help
-
-## Authors
-
-## Version History
-
-## License
-
-## Acknowledgments
