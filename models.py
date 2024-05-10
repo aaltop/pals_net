@@ -286,6 +286,12 @@ class PALS_GNLL_Intensities(PALS_GNLL):
         
         return [softmaxxed, softmaxxed_var]
 
+class PALS_GNLL_Single(PALS_GNLL):
+
+    def process_output(self, x):
+        normal, var = self.idx
+        softplus = torch.nn.Softplus(beta=10)
+        return [x[:,normal], softplus(x[:,var])]
 
 if __name__ == "__main__":
 
