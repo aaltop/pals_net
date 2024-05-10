@@ -318,7 +318,8 @@ def evaluate_gnll_model(
     x,
     y,
     comp_names,
-    plot_saver:PlotSaver
+    plot_saver:PlotSaver=None,
+    plot=True,
 ):
 
 
@@ -359,6 +360,7 @@ def evaluate_gnll_model(
         # the multiplying normalisation constant
         pred_var = pred_var.detach()*(train_dict["normalisation"]**2)
     else:
+        # see processing.py
         proc, kwargs = train_dict["output_normalisation"]
         output_processing = proc(**kwargs)
 
@@ -376,6 +378,9 @@ def evaluate_gnll_model(
     print("Mean:")
     print(separate_r2.mean())
 
+    if not plot:
+        return (pred, pred_var), separate_r2
+
     # plot each of the true values and the predicted ones,
     # together with 2*std confidence intervals. Sort in ascending order
     # by the true values
@@ -391,8 +396,8 @@ def evaluate_gnll_model(
         plt.plot(true, label="true")
         plt.fill_between(num_val, predicted-std2, predicted+std2, alpha=0.5, label="2*std prediction interval")
         plt.legend()
-        plt.title(f"True and predicted values for {name}\nMean of two standard deviations: {torch.mean(std2).item():.3f}")
-        plt.xlabel("number of data file")
+        plt.title(f"True and predicted values for {name}\nMean of two standard deviations: {torch.mean(std2).item():.2e}")
+        # plt.xlabel("number of data file")
         plt.ylabel("Value of component")
         plot_saver.save(name, fig)
         plt.close(fig)
@@ -405,7 +410,8 @@ def main(
         model_folder=None,
         model_file=None,
         verbose=False,
-        background=True
+        background=True,
+        do_plotting=True
 
 ):
     '''
@@ -437,6 +443,9 @@ def main(
     ### background : boolean
         Whether there is a background included in the predictions.
         Currently only used to exclude background from the main plot.
+
+    ### do_plotting : boolean
+        Whether to plot stuff.
     
     '''
 
@@ -500,7 +509,7 @@ def main(
     # Ready the model
     # ------------------------------------------------
 
-    plot_saver = PlotSaver(data_folder)
+    plot_saver = PlotSaver(data_folder, save_resolution=(6.4,4.8))
     
     model_class = train_dict.get("model_class", PALS_GNLL)
     model = load_model.load_network(train_dict, model_class)
@@ -508,14 +517,23 @@ def main(
     if PALS_MSE is model_class:
         evaluate_model(model, train_dict, x, y)
     elif PALS_GNLL is model_class:
-        (pred, pred_var), separate_r2 = evaluate_gnll_model(model, train_dict, x, y, comp_names, plot_saver)
+        (pred, pred_var), separate_r2 = evaluate_gnll_model(model, train_dict, x, y, comp_names, plot_saver, plot=do_plotting)
 
+    
     # PLot histograms of the distribution of residuals
     # ------------------------------------------------
     residual = y-pred
 
+    print("Max deviations:")
+    print(torch.amax(residual, dim=0))
+    print("residual 2*std:")
+    print(2*torch.std(residual, dim=0))
+
+    if not do_plotting:
+        return
+
     true_means = y.mean(dim=0)
-    residual_normalised = residual/y
+    residual_normalised = residual/(2.0*pred_var**0.5)
 
     if background:
         axes_mosaic = [
@@ -545,7 +563,7 @@ def main(
     #     ncols = 3
     # )
 
-
+    plot_saver.resolution = (19.2,10.8)
     for ax_name, axis in ax_dict.items():
 
         idx = name_to_idx[ax_name]
@@ -557,7 +575,7 @@ def main(
 
         # axis.hist(y[:,i], label="True")
         # axis.hist(pred[:,i], alpha=0.5, label="Predict")
-        axis.hist(residual_normalised[:,idx])
+        axis.hist(residual_normalised[:,idx], bins=20)
         axis.set_title(title)
         # axis.legend()
     
@@ -574,7 +592,7 @@ def main(
     one_y = y[random_index,:]
 
 
-    raise SystemExit
+    return
 
     # test_prediction([one_pred,one_y])
     test_prediction([(pred[i,:][:-1], y[i,:][:-1]) for i in range(len(pred))], _rng)
@@ -584,34 +602,48 @@ def main(
 
 if __name__ == "__main__":
 
-    # main(
-    #     data_folder="simdata_evaluate01",
-    #     # model_file="model20240307171529.pt",
-    #     verbose=False
-    # )
+    import time
 
-    # main(
-    #     data_folder="simdata_evaluate03",
-    #     model_file = "model20240312170320.pt",
-    #     verbose=False
-    # )
-
-    # main(
-    #     data_folder="simdata_evaluate05",
-    #     verbose=False
-    # )
-
-    # main(
-    #     data_folder="simdata_evaluate06",
-    #     verbose=False
-    # )
-
-    # main(
-    #     data_folder="simdata_evaluate07",
-    #     verbose=False
-    # )
+    dat14 = "model20240413165217.pt"
+    dat01 = "model20240419130456.pt"
+    dat02 = "model20240419140835.pt"
+    dat03 = "model20240419161121.pt"
+    dat_int = "model20240419185318.pt"
+    # higher number of events
+    dat04 = "model20240420124003.pt"
+    # two components
+    dat05 = "model20240420135036.pt"
+    # two components, no noise
+    dat06 = "model20240420143840.pt"
+    # two components, no noise, more variation in intensities
+    dat07 = "model20240420154031.pt"
+    # original, more variation in intensities
+    dat08 = "model20240420173757.pt"
+    dat08_2 = "model20240420191627.pt"
+    dat08_3 = "model20240421123850.pt"
 
     main(
-        data_folder="simdata_evaluate13",
+        data_folder="simdata_eval11",
+        # model_file=dat14,
+        do_plotting=False,
         verbose=False,
+        # data_size=200
     )
+
+
+    # main(
+    #     data_folder="simdata_evaluate14",
+    #     data_size=1000,
+    #     verbose=False,
+    #     model_file="model20240413165217.pt",
+    #     do_plotting=False
+    # )
+
+    # main(
+    #     data_folder="simdata_eval14_no_noise",
+    #     data_size=1000,
+    #     verbose=False,
+    #     model_file="model20240414175207.pt",
+    #     do_plotting=False,
+    #     background=False
+    # )
