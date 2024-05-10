@@ -57,7 +57,10 @@ from pytorch_helpers import (
 
 from active_plot import active_plotting
 
-from models import MLP, NeuralNet, Conv1, PALS_MSE, PALS_GNLL, PALS_GNLL_Intensities
+from models import (
+    MLP, NeuralNet, Conv1, PALS_MSE, PALS_GNLL, PALS_GNLL_Intensities,
+    PALS_GNLL_Single
+    )
 
 import load_model
 
@@ -203,6 +206,13 @@ class Model:
         '''
         Calculate the loss based on <pred>, the output from the neural
         net, and <true>, the true outputs, and return the loss.
+
+        ### pred
+            Should be a tuple only if it is to contain separate
+            values for prediction, such as ([normal, normal_var], [softmax, softmax_var]).
+            Each item in the tuple will then have a loss calculated on it
+            separately. Otherwise, should, for example, be a list,
+            such as [normal, normal_var].
         '''
 
 
@@ -223,8 +233,6 @@ class Model:
         Does one iteration of model training.
         '''
 
-        epoch_loss = 0
-
         self.inner_model.train()
 
         # TODO: could make a proper dataloader thing for this
@@ -234,6 +242,7 @@ class Model:
         if num_batches == 0:
             num_batches == 1
 
+        epoch_loss = 0
         for i in range(num_batches):
             x = inputs[i*batch_size:(i+1)*batch_size,:]
             y = self.transform_true(outputs[i*batch_size:(i+1)*batch_size,:])
@@ -243,7 +252,6 @@ class Model:
 
             pred = self.inner_model(x)
 
-            # print(pred)
             loss = self.calculate_loss(pred, y)
             loss.backward()
             epoch_loss += loss.item()
@@ -286,7 +294,6 @@ class Model:
                 y = self.transform_true(outputs[i*batch_size:(i+1)*batch_size,:])
 
                 all_pred = self.inner_model(x)
-
                 loss = self.calculate_loss(all_pred, y).item()
                 logging.info("loss:")
                 logging.info(loss)
@@ -332,7 +339,8 @@ class Model:
         ### r2
         '''
 
-
+        # for jankily testing mse loss vs. r2 loss
+        # r2_score = lambda x,y: -torch.nn.functional.mse_loss(x,y, reduction="none").mean(dim=0)
 
         self.inner_model.eval()
         with torch.no_grad():
@@ -450,7 +458,8 @@ def model_training(
         print("\033[K",end="")
         print(f"{epoch+1}/{epochs}", end="\r")
 
-        current_loss = model.train(x_train, y_train, batch_size)
+        rand_idx = torch.randperm(len(x_train))
+        current_loss = model.train(x_train[rand_idx], y_train[rand_idx], batch_size)
         losses[epoch] = current_loss
 
         # save r2 evaluations, keep track of best model parameters
