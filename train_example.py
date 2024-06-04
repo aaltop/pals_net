@@ -6,8 +6,7 @@ Everything that's needed to do here (to begin with) is contained in the argument
 of the `main()` function at the bottom. Main things to possibly
 change in the function:
 
-- <data_folder>: The folder where the data simulated in 
-"simulate_spectra.py" was saved.
+- <data_folder>: The folder where the simulated data was saved.
 
 - <train_size>, <test_size>: the preferred sizes of training and test
 data. The sum of these should be at most equal to the number of data
@@ -467,7 +466,7 @@ def setup_logger(date_str):
     return log_file_path
 
 
-def main(
+def perform_training(
         data_folder:str,
         train_size:int,
         test_size:int,
@@ -778,7 +777,7 @@ if __name__ == "__main__":
     # is far less than on the lifetimes, yet the R2 is worse for the
     # former
 
-    # main(
+    # peform_training(
     #     data_folder="simdata_train14_no_noise",
     #     train_size=19000,
     #     test_size=1000,
@@ -792,7 +791,7 @@ if __name__ == "__main__":
 
 
 
-    main(
+    perform_training(
         data_folder="simdata_train11",
         train_size=3000,
         test_size=1000,

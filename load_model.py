@@ -5,6 +5,14 @@ import torch
 def load_train_dict(model_folder=None, model_file=None):
     '''
     Load the data saved during model training
+
+    ### model_folder : string
+        The name of the folder the model was saved to, defaults
+        to "saved_models".
+
+    ### model_file : string
+        The name of the file the model is saved to, defaults to
+        the last file in the folder <model_folder>.
     '''
 
     if model_folder is None:
@@ -39,7 +47,7 @@ def load_network(train_dict:dict=None, network:torch.nn.Module=None):
 
     ### network
         The class used as the model. If None,
-        attempts to get the value at key "model_class" from <train_dict>.
+        attempts to get the value at key model_class from <train_dict>.
     '''
 
     if train_dict is None:

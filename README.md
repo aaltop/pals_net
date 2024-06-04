@@ -27,7 +27,7 @@ found to be potentially viable for analysing PALS spectra.
 
 Usage can be a little involved, but should not be too much so. Usage
 will require a Python installation along with the below dependencies
-and perhaps some Python knowledge.
+and likely some Python knowledge.
 
 ### Dependencies
 
@@ -48,12 +48,15 @@ Once all the dependencies are installed, there are essentially three
 steps to the process: 
 
 1. Simulation data creation, handled in the file **simulate_spectra.py**.
+(see simulate_spectra_example.py for examples.)
 
-2. Training the model, handled in the file **train.py**.
+2. Training the model, handled in the file **train.py**. (See train_example.py
+for examples.)
 
 3. Evaluating the model, handled in the file **evaluate.py**.
 
 Each file has a module docstring that contains instructions for running 
 the file, and where to look if changes to the process are wanted. A quick
 look through the files is recommended before running anything, but 
-nothing entirely unexpected should happen.
+nothing entirely unexpected should happen. The file **example.ipynb**
+Gathers all the steps into one file.

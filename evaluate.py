@@ -346,8 +346,6 @@ def evaluate_gnll_model(
         # sort into correct index order
         pred_to_y_conversion = [val[0] for val in sorted(enumerate(col_index), key=lambda x: x[1])]
         # use sorted indices to get the correct order
-        # print(pred_to_y_conversion)
-        # print(torch.column_stack((normal, softmax)).size())
         pred = torch.column_stack((normal, softmax))[:, pred_to_y_conversion]
         pred_var = torch.column_stack((normal_var, softmax_var))[:, pred_to_y_conversion]
 
@@ -602,7 +600,6 @@ def main(
 
 if __name__ == "__main__":
 
-    import time
 
     dat14 = "model20240413165217.pt"
     dat01 = "model20240419130456.pt"
